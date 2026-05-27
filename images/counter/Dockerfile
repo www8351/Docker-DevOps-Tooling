@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 
-LABEL maintainer="refael malka <www8351@gmail.com>"
+LABEL maintainer="refael malka"
 
 COPY counter.sh /usr/local/bin/counter.sh
 RUN chmod +x /usr/local/bin/counter.sh
