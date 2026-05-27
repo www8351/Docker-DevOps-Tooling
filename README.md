@@ -11,6 +11,7 @@ Declarative infrastructure · a typed Python CLI · a single task-runner entrypo
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Typer](https://img.shields.io/badge/CLI-Typer-009688)
 ![Task](https://img.shields.io/badge/Runner-Task-29BEB0?logo=task&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 </div>
 
