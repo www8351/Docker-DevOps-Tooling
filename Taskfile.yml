@@ -46,6 +46,19 @@ tasks:
     cmds:
       - docker compose down --volumes
 
+  test:
+    desc: Run the dockerctl unit test suite
+    dir: cli
+    cmds:
+      - pip install -e '.[test]'
+      - pytest
+
+  fmt:
+    desc: Auto-format Python code with ruff
+    cmds:
+      - ruff format cli
+      - ruff check --fix cli
+
   lint:
     desc: Run all linters (compose, Dockerfile, shell, python)
     cmds:
@@ -53,6 +66,7 @@ tasks:
       - hadolint images/counter/Dockerfile
       - shellcheck images/counter/counter.sh
       - ruff check cli
+      - ruff format --check cli
 
   cli:
     desc: 'Run the dockerctl CLI, e.g. `task cli -- images pull nginx:latest`'

@@ -28,13 +28,35 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: cli/pyproject.toml
 
       - name: Lint Python (ruff)
         run: |
           pip install ruff
           ruff check cli
+          ruff format --check cli
 
       - name: Import-check the CLI
         run: |
-          pip install -e cli
+          pip install -e 'cli[test]'
           dockerctl version
+
+      - name: Run tests (pytest)
+        run: pytest cli
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build counter image
+        run: docker build -t counter:ci images/counter
+
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: counter:ci
+          severity: HIGH,CRITICAL
+          # Report only for now; set to '1' to fail the build on findings.
+          exit-code: "0"

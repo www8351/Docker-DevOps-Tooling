@@ -9,6 +9,35 @@ from ._docker import DockerError, run
 app = typer.Typer(help="Manage Docker images.")
 
 
+@app.command("ls")
+def list_images(
+    json_: bool = typer.Option(False, "--json", help="Output one JSON object per line"),
+) -> None:
+    """List local images."""
+    args = ["images"]
+    if json_:
+        args += ["--format", "{{json .}}"]
+    try:
+        typer.echo(run(*args, capture=True), nl=False)
+    except DockerError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+
+@app.command()
+def build(
+    path: str = typer.Argument(..., help="Build context path, e.g. images/counter"),
+    tag: str = typer.Option(..., "--tag", "-t", help="Image tag, e.g. counter:latest"),
+) -> None:
+    """Build an image from a Dockerfile context."""
+    try:
+        run("build", "-t", tag, path)
+    except DockerError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Built {tag} from {path}")
+
+
 @app.command()
 def pull(name: str = typer.Argument(..., help="Image reference, e.g. nginx:latest")) -> None:
     """Pull an image from a registry."""
