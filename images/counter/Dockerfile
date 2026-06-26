@@ -1,26 +1,41 @@
-FROM ubuntu:24.04
+# syntax=docker/dockerfile:1
+#
+# counter — a minimal, hardened demo image.
+#
+# Multi-stage:
+#   1) lint    — shellcheck the script at build time (a broken script fails the
+#                build, not just CI). Nothing from this stage ships.
+#   2) runtime — a tiny Alpine image carrying ONLY the validated script,
+#                executed by an unprivileged user.
+#
+# Previously this ran on ubuntu:24.04 (~78 MB) and installed openssh-server,
+# sshpass, tcpdump, net-tools and python3 — none of which the script uses.
+# That was pure attack surface; it is all gone.
+
+# ---- Stage 1: build-time lint gate -----------------------------------------
+FROM alpine:3.20 AS lint
+
+# hadolint ignore=DL3018
+RUN apk add --no-cache shellcheck
+
+WORKDIR /src
+COPY counter.sh .
+RUN shellcheck counter.sh
+
+# ---- Stage 2: runtime -------------------------------------------------------
+FROM alpine:3.20 AS runtime
 
 LABEL maintainer="refael malka"
 
-COPY counter.sh /usr/local/bin/counter.sh
-RUN chmod +x /usr/local/bin/counter.sh
+# Unprivileged user/group with fixed IDs (predictable for volume permissions).
+RUN addgroup -S -g 10001 app \
+    && adduser -S -u 10001 -G app app
 
-# Single layer: install tools, then clean apt cache to keep the image small.
-# DL3008: pinning every apt package version is impractical on an Ubuntu base.
-# hadolint ignore=DL3008
-RUN set -eux; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends \
-		python3 \
-		openssh-server \
-		net-tools \
-		tcpdump \
-		sshpass; \
-	rm -rf /var/lib/apt/lists/*
+# Copy only the script that passed the lint stage.
+COPY --from=lint --chown=root:root /src/counter.sh /usr/local/bin/counter.sh
+RUN chmod 0555 /usr/local/bin/counter.sh
 
-# Route app logs to the container's stdout/stderr (must create the dir first).
-RUN mkdir -p /var/log/my \
-	&& ln -sf /dev/stdout /var/log/my/access.log \
-	&& ln -sf /dev/stderr /var/log/my/error.log
+USER app
 
+# POSIX sh ships in Alpine's busybox — no bash package required.
 CMD ["/usr/local/bin/counter.sh"]

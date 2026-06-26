@@ -25,6 +25,7 @@ Declarative infrastructure · a typed Python CLI · a single task-runner entrypo
 - [Requirements](#-requirements)
 - [Quick start](#-quick-start)
 - [The stack (docker-compose)](#-the-stack-docker-compose)
+- [DevOps Tooling & Containerization Suite](#-devops-tooling--containerization-suite)
 - [The CLI (dockerctl)](#-the-cli-dockerctl)
 - [Task runner](#-task-runner)
 - [Continuous integration](#-continuous-integration)
@@ -90,11 +91,13 @@ flowchart TD
 │   └── .env.example         # ports + image tags  →  copy to .env
 ├── images/
 │   └── counter/             # custom image, built by compose
-│       ├── Dockerfile
-│       └── counter.sh
+│       ├── Dockerfile       # multi-stage, hardened, Alpine, non-root
+│       └── counter.sh       # POSIX sh (no bash needed)
 ├── web/
 │   └── index.html           # served by nginx from a read-only mount
 ├── cli/                     # dockerctl — non-interactive Python CLI
+│   ├── Dockerfile           # multi-stage build → slim Alpine, non-root
+│   ├── .dockerignore
 │   ├── pyproject.toml
 │   └── dockerctl/
 │       ├── __main__.py      # entrypoint + subcommand wiring
@@ -149,14 +152,81 @@ from `compose/.env` (never hardcoded).
 | `nginx` | `nginx` | `8080:80` | serves `web/` read-only |
 | `httpd` | `httpd` | `8081:80` | replaces the old non-existent `apache2` |
 | `portainer` | `portainer/portainer-ce` | `9000:9000` | Docker UI, replaces dead `dockerui` |
-| `counter` | built from `images/counter/` | — | prints an incrementing counter |
+| `counter` | built from `images/counter/` | — | prints an incrementing counter; hardened Alpine, non-root (see [suite](#-devops-tooling--containerization-suite)) |
 
 ```bash
-task build    # docker compose build
+task build    # docker compose --profile tools build  (counter + dockerctl)
 task pull     # docker compose pull
 task logs     # docker compose logs -f
 task clean    # down + remove volumes
 ```
+
+---
+
+## 🛡 DevOps Tooling & Containerization Suite
+
+Two purpose-built images, each authored as a **multi-stage build on a minimal Alpine base
+and run by an unprivileged user**. The goal is small, reproducible, and low-attack-surface —
+the build toolchain never reaches the final image, and neither does root.
+
+| Image | Source | Base | Multi-stage layout | Runs as |
+|-------|--------|------|--------------------|---------|
+| `counter` | [`images/counter/`](images/counter/) | `alpine:3.20` | `lint` (shellcheck gate) → `runtime` | non-root `app` (UID 10001) |
+| `dockerctl` | [`cli/`](cli/) | `python:3.12-alpine` | `builder` (venv via `python:3.12-slim`) → `runtime` | non-root `app` (UID 10001) |
+
+### 🔢 `counter` — from 78 MB of attack surface to a few MB
+
+The original image ran a trivial bash loop on `ubuntu:24.04` while installing
+`openssh-server`, `sshpass`, `tcpdump`, `net-tools`, and `python3` — **none of which the
+script uses**. `sshpass` and `tcpdump` alone are exactly what an image scanner flags first.
+
+| | Before ❌ | After ✅ |
+|--|----------|---------|
+| Base | `ubuntu:24.04` (~78 MB) | `alpine:3.20` (~7 MB) |
+| Extra packages | ssh, sshpass, tcpdump, net-tools, python3 | none |
+| User | root | non-root `app` (UID/GID 10001) |
+| Stages | 1 | 2 (lint gate → runtime) |
+| Script | bash + dead `/var/log/my` symlinks | POSIX `sh`, no bash needed |
+
+**Hardening choices**
+- **Build-time lint gate** — stage 1 runs `shellcheck` against `counter.sh`; a broken script
+  fails `docker build`, so bad shell never reaches an image.
+- **Carry only what runs** — the runtime stage copies *just* the validated script; every package
+  from the old image is gone.
+- **Non-root by construction** — a fixed-ID `app` user owns nothing it doesn't need; the script
+  is installed read-and-execute only (`0555`).
+- **POSIX `sh`** — rewriting the one bashism (`((counter++))` → `$((counter + 1))`) lets it run on
+  Alpine's busybox `ash`, so no `bash` package is installed at all.
+
+### 🐍 `dockerctl` — multi-stage Python, no toolchain in the runtime
+
+```bash
+docker compose --profile tools build dockerctl      # or: docker build -t dockerctl cli
+
+docker run --rm dockerctl version                   # → 0.1.0  (no socket needed)
+docker run --rm dockerctl images --help
+
+# drive the real engine by mounting the host socket:
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  dockerctl images pull nginx:latest
+```
+
+**Hardening choices**
+- **Builder/runtime split** — the `builder` stage uses a full `python:3.12-slim` to install the
+  project into an isolated venv at `/opt/venv`; the runtime stage copies only that venv, so pip,
+  build tools, and caches never ship.
+- **Minimal runtime** — `python:3.12-alpine` plus only `docker-cli` (the client, not a daemon),
+  because `dockerctl` shells out to `docker` (see [`cli/dockerctl/_docker.py`](cli/dockerctl/_docker.py)).
+- **Non-root `app` user** and a lean build context via [`cli/.dockerignore`](cli/.dockerignore)
+  (tests, caches, and the Dockerfile itself are excluded).
+- **No socket baked in** — the engine is reached only through an explicitly mounted
+  `/var/run/docker.sock` at run time, so the image grants itself nothing.
+
+### 🔎 Scanned in CI
+
+Both images are built and scanned by **Trivy** on every push (see
+[CI](#-continuous-integration)). The scan **gates on HIGH/CRITICAL** findings
+(`ignore-unfixed: true`, so unpatchable upstream base CVEs don't break the build).
 
 ---
 
@@ -209,10 +279,11 @@ task cli -- images pull nginx:latest   # proxy to dockerctl
 **fully unattended, nothing prompts**:
 
 1. ✅ **Compose** — `docker compose config` validates the stack
-2. 🐳 **Dockerfile** — `hadolint` lints `images/counter/Dockerfile`
+2. 🐳 **Dockerfiles** — `hadolint` lints both `images/counter/Dockerfile` and `cli/Dockerfile`
 3. 🐚 **Shell** — `shellcheck` on shell scripts
 4. 🐍 **Python** — `ruff` lints the CLI
 5. 📦 **CLI** — installs `dockerctl` and runs it to confirm it imports
+6. 🛡 **Images** — builds **both** images and scans each with **Trivy** (gates HIGH/CRITICAL, `ignore-unfixed`)
 
 ---
 
