@@ -27,9 +27,9 @@ tasks:
       - docker compose down
 
   build:
-    desc: Build images defined in compose (the counter image)
+    desc: Build all images in the suite (counter + the profiled dockerctl CLI)
     cmds:
-      - docker compose build
+      - docker compose --profile tools build
 
   pull:
     desc: Pull all referenced images
@@ -64,6 +64,7 @@ tasks:
     cmds:
       - docker compose config --quiet
       - hadolint images/counter/Dockerfile
+      - hadolint cli/Dockerfile
       - shellcheck images/counter/counter.sh
       - ruff check cli
       - ruff format --check cli

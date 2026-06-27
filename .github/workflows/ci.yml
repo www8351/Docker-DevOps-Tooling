@@ -14,10 +14,15 @@ jobs:
       - name: Validate compose file
         run: docker compose -f compose/docker-compose.yml config --quiet
 
-      - name: Lint Dockerfile (hadolint)
+      - name: Lint counter Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: images/counter/Dockerfile
+
+      - name: Lint dockerctl Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: cli/Dockerfile
 
       - name: Lint shell scripts (shellcheck)
         uses: ludeeus/action-shellcheck@master
@@ -47,16 +52,26 @@ jobs:
 
   image:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: counter
+            context: images/counter
+          - name: dockerctl
+            context: cli
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build counter image
-        run: docker build -t counter:ci images/counter
+      - name: Build ${{ matrix.name }} image
+        run: docker build -t ${{ matrix.name }}:ci ${{ matrix.context }}
 
-      - name: Scan image (Trivy)
+      - name: Scan ${{ matrix.name }} image (Trivy)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: counter:ci
+          image-ref: ${{ matrix.name }}:ci
           severity: HIGH,CRITICAL
-          # Report only for now; set to '1' to fail the build on findings.
-          exit-code: "0"
+          # Images are hardened, so gate the build on findings. Unpatchable
+          # base-image CVEs (no fix upstream yet) are ignored so CI stays green.
+          ignore-unfixed: true
+          exit-code: "1"

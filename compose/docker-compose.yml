@@ -38,5 +38,17 @@ services:
       context: ../images/counter
     restart: unless-stopped
 
+  # The dockerctl CLI image. It is a one-shot tool, not a daemon, so it lives
+  # behind the "tools" profile: `docker compose --profile tools build dockerctl`
+  # builds it without it ever starting on `docker compose up`.
+  dockerctl:
+    profiles: ["tools"]
+    build:
+      context: ../cli
+    image: dockerctl:local
+    # Mount the host socket to drive the real engine; safe to omit for --help.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
 volumes:
   portainer_data:
