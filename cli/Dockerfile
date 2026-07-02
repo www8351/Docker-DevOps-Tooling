@@ -18,7 +18,7 @@
 # `version` / `--help` need no socket.
 
 # ---- Stage 1: builder -------------------------------------------------------
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -32,7 +32,7 @@ COPY . .
 RUN pip install .
 
 # ---- Stage 2: runtime -------------------------------------------------------
-FROM python:3.12-alpine AS runtime
+FROM python:3.14-alpine AS runtime
 
 LABEL maintainer="refael malka"
 
