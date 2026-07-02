@@ -11,3 +11,10 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+
+# AI lifecycle files (local state; README.md stays tracked)
+CLAUDE.md
+CLAUDE_MEMORY.md
+STATUS.md
+PROGRESS.md
+DECISIONS.md
