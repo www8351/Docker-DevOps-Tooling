@@ -137,10 +137,15 @@ jobs:
 
       # One live integration test against a real engine, complementing the
       # fully-mocked unit suite: the dockerctl image drives the runner's socket.
+      # The image runs as non-root (UID 10001), so grant it the socket's group
+      # instead of root — hardening stays intact.
       - name: Live dockerctl smoke test
         run: |
           docker compose -f compose/docker-compose.yml --profile tools build dockerctl
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock dockerctl:local containers ls
+          docker run --rm \
+            --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            dockerctl:local containers ls
 
       - name: Tear down
         if: always()
