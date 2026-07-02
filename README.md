@@ -6,10 +6,13 @@
 
 Declarative infrastructure · a typed Python CLI · a single task-runner entrypoint.
 
-[![CI](https://github.com/www8351/Bash/actions/workflows/ci.yml/badge.svg)](https://github.com/www8351/Bash/actions/workflows/ci.yml)
-![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+[![CI](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml)
+[![Release](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml)
+[![GHCR](https://img.shields.io/badge/GHCR-images-2496ED?logo=docker&logoColor=white)](https://github.com/www8351?tab=packages&repo_name=Docker-DevOps-Tooling)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Typer](https://img.shields.io/badge/CLI-Typer-009688)
+![mypy](https://img.shields.io/badge/mypy-strict-blue)
+![coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25_gated-brightgreen)
 ![Task](https://img.shields.io/badge/Runner-Task-29BEB0?logo=task&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
@@ -29,8 +32,10 @@ Declarative infrastructure · a typed Python CLI · a single task-runner entrypo
 - [The CLI (dockerctl)](#-the-cli-dockerctl)
 - [Task runner](#-task-runner)
 - [Continuous integration](#-continuous-integration)
+- [Releases & published images](#-releases--published-images)
 - [Design principles](#-design-principles)
 - [Troubleshooting](#-troubleshooting)
+- [Contributing / Security / Changelog](#-contributing--security--changelog)
 
 ---
 
@@ -145,14 +150,20 @@ task down               # or: docker compose -f compose/docker-compose.yml down
 ## 🧱 The stack (docker-compose)
 
 Defined in [`compose/docker-compose.yml`](compose/docker-compose.yml). Ports and tags come
-from `compose/.env` (never hardcoded).
+from `compose/.env` (never hardcoded); tags are **pinned by default**.
 
-| Service | Image | Default port | Notes |
-|---------|-------|--------------|-------|
-| `nginx` | `nginx` | `8080:80` | serves `web/` read-only |
-| `httpd` | `httpd` | `8081:80` | replaces the old non-existent `apache2` |
-| `portainer` | `portainer/portainer-ce` | `9000:9000` | Docker UI, replaces dead `dockerui` |
-| `counter` | built from `images/counter/` | — | prints an incrementing counter; hardened Alpine, non-root (see [suite](#-devops-tooling--containerization-suite)) |
+| Service | Image | Default port | Health | Network | Notes |
+|---------|-------|--------------|--------|---------|-------|
+| `nginx` | `nginx:1.27-alpine` | `8080:80` | `wget` probe | `web` | serves `web/` read-only |
+| `httpd` | `httpd:2.4-alpine` | `8081:80` | `wget` probe | `web` | replaces the old non-existent `apache2` |
+| `portainer` | `portainer/portainer-ce:2.27.9` | `9000:9000` | — (scratch image) | `mgmt` | Docker UI, replaces dead `dockerui` |
+| `counter` | built from `images/counter/` | — | `pgrep` probe | `web` | incrementing counter; hardened Alpine, non-root (see [suite](#-devops-tooling--containerization-suite)) |
+
+Every service runs with a **read-only root filesystem** (tmpfs for known write
+paths), **all capabilities dropped** (web servers re-add only what port 80
+needs), `no-new-privileges`, CPU/memory limits, and bounded json-file logging.
+The `mgmt` network isolates docker.sock consumers from the public-facing tier.
+The alpine tags are load-bearing: busybox `wget` powers the healthchecks.
 
 ```bash
 task build    # docker compose --profile tools build  (counter + dockerctl)
@@ -242,16 +253,26 @@ pip install -e cli            # installs the `dockerctl` command
 
 | Command | Replaces | Example |
 |---------|----------|---------|
+| `images ls [--json]` | menu listing | `dockerctl images ls --json` |
+| `images build <path> -t <tag>` | build menus | `dockerctl images build images/counter -t counter:dev` |
 | `images pull <ref>` | `pull_images.sh` | `dockerctl images pull nginx:latest` |
 | `images rm <id> [-f]` | `remove_images.sh` | `dockerctl images rm nginx:latest` |
-| `containers ls [-a]` | menu listing | `dockerctl containers ls --all` |
+| `images tag <src> <target>` | — | `dockerctl images tag counter:dev ghcr.io/acme/counter:1.0` |
+| `images push <ref>` | — | `dockerctl images push ghcr.io/acme/counter:1.0` |
+| `containers ls [-a] [--json]` | menu listing | `dockerctl containers ls --all` |
 | `containers rm <id> [-f]` | `remove_Container.sh` | `dockerctl containers rm web --force` |
 | `containers deploy <img>` | deploy menus | `dockerctl containers deploy nginx:latest -n web -p 8080:80` |
+| `containers logs / stop / start / restart` | menu ops | `dockerctl containers restart -t 5 web` |
+| `containers exec / inspect / stats` | menu ops | `dockerctl containers stats --json` |
 
 ```bash
+dockerctl --version           # or -V, or the `version` subcommand
 dockerctl --help              # full command tree
 dockerctl images --help       # per-group help
 ```
+
+The CLI is **mypy-strict clean** and its test suite is **coverage-gated at
+90%** (currently 100%); the version is single-sourced from `pyproject.toml`.
 
 ---
 
@@ -276,14 +297,41 @@ task cli -- images pull nginx:latest   # proxy to dockerctl
 ## 🤖 Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request —
-**fully unattended, nothing prompts**:
+**fully unattended, nothing prompts** — under least-privilege permissions with
+every action **pinned to a commit SHA** and per-ref concurrency:
 
+**`lint` job**
 1. ✅ **Compose** — `docker compose config` validates the stack
 2. 🐳 **Dockerfiles** — `hadolint` lints both `images/counter/Dockerfile` and `cli/Dockerfile`
 3. 🐚 **Shell** — `shellcheck` on shell scripts
-4. 🐍 **Python** — `ruff` lints the CLI
-5. 📦 **CLI** — installs `dockerctl` and runs it to confirm it imports
-6. 🛡 **Images** — builds **both** images and scans each with **Trivy** (gates HIGH/CRITICAL, `ignore-unfixed`)
+4. 🐍 **Python** — `ruff` lint + format check
+5. 🔍 **Types** — `mypy` in strict mode
+6. 📦 **Tests** — `pytest` with a 90% coverage gate
+
+**`image` job** (matrix: counter, dockerctl)
+- builds via buildx with GitHub Actions **layer caching**
+- scans with **Trivy** (gates HIGH/CRITICAL, `ignore-unfixed`)
+- generates a **CycloneDX SBOM** per image, uploaded as an artifact
+
+**`publish` job** (pushes to `main` only)
+- pushes both images to **GHCR** tagged `latest` + short commit SHA
+
+[Dependabot](.github/dependabot.yml) keeps GitHub Actions, pip, and both
+Dockerfiles updated weekly.
+
+---
+
+## 🚢 Releases & published images
+
+Tagging `vX.Y.Z` (matching `cli/pyproject.toml` — the workflow asserts it)
+fires [`release.yml`](.github/workflows/release.yml): semver-tagged images on
+GHCR plus an auto-generated GitHub Release. Curated notes live in
+[CHANGELOG.md](CHANGELOG.md).
+
+```bash
+docker pull ghcr.io/www8351/docker-devops-tooling/dockerctl:0.2.0
+docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
+```
 
 ---
 
@@ -306,6 +354,15 @@ task cli -- images pull nginx:latest   # proxy to dockerctl
 | Page looks unstyled | Hard-refresh; `web/index.html` is mounted live (no rebuild needed). |
 | `dockerctl: command not found` | Run `pip install -e cli` first. |
 | Permission denied on docker socket | Add your user to the `docker` group, or run with `sudo`. |
+| A service is unhealthy / crash-looping | Check `docker compose ps` + `task logs`; the stack runs read-only — see the tmpfs lists in the compose file. |
+
+---
+
+## 🤝 Contributing / Security / Changelog
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — setup, quality gates, conventions, release steps
+- [SECURITY.md](SECURITY.md) — reporting vulnerabilities, security posture
+- [CHANGELOG.md](CHANGELOG.md) — curated, Keep-a-Changelog format
 
 ---
 
