@@ -12,6 +12,11 @@ updates:
     directory: "/cli"
     schedule:
       interval: weekly
+    groups:
+      # Minor/patch python updates arrive as one weekly PR instead of five.
+      python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: docker
     directory: "/images/counter"

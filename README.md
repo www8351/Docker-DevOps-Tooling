@@ -360,6 +360,7 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
 | Page looks unstyled | Hard-refresh; `web/index.html` is mounted live (no rebuild needed). |
 | `dockerctl: command not found` | Run `pip install -e cli` first. |
 | Permission denied on docker socket | Add your user to the `docker` group, or run with `sudo`. |
+| `dockerctl` container can't reach the socket | The image is non-root; grant it the socket's group: `docker run --group-add "$(stat -c '%g' /var/run/docker.sock)" …` |
 | A service is unhealthy / crash-looping | Check `docker compose ps` + `task logs`; the stack runs read-only — see the tmpfs lists in the compose file. |
 
 </details>
