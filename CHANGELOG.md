@@ -7,20 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-02
+
 ### Added
 
+- **CI boots the stack**: a `stack-test` job runs `docker compose up -d --wait`
+  (every healthcheck becomes a CI assertion), probes nginx/httpd endpoints,
+  and runs the built `dockerctl` image against the runner's live Docker socket.
+- **Multi-arch images**: `linux/amd64` + `linux/arm64` on every GHCR push.
+- **Signed, attested images**: cosign keyless signing (OIDC) plus BuildKit
+  provenance (`mode=max`) and SBOM attestations; verification one-liner
+  documented in SECURITY.md.
 - PR template, YAML issue forms (bug/feature), and CODEOWNERS.
 - VHS tape (`docs/assets/demo.tape`) for reproducing the README terminal demo,
   and a social-preview card image.
-- Live-boot verification of the hardened stack (all healthchecks green,
-  nginx/httpd answering) captured in the README.
 
 ### Changed
 
 - README refocused around `dockerctl` as a hardened operations toolkit:
   highlights strip with deep links, real `docker compose ps` output above the
   fold, collapsible reference tables, auto-generated ToC instead of a manual one.
+- Dependabot now groups minor/patch Python updates into a single weekly PR.
 - Design doc moved to `docs/design/production-upgrade-design.md`.
+- Dependency floors raised by Dependabot: typer ≥ 0.26.8, pytest ≥ 9.1.1,
+  setuptools ≥ 82.0.1.
 
 ## [0.2.0] - 2026-07-02
 
@@ -83,6 +93,7 @@ Initial modernization of the 5-year-old interactive bash labs.
 - All legacy interactive bash menu scripts, dead images
   (`abh1nav/dockerui`), and hardcoded AWS IPs.
 
-[Unreleased]: https://github.com/www8351/Docker-DevOps-Tooling/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/www8351/Docker-DevOps-Tooling/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/www8351/Docker-DevOps-Tooling/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/www8351/Docker-DevOps-Tooling/compare/c6c601e...v0.2.0
 [0.1.0]: https://github.com/www8351/Docker-DevOps-Tooling/compare/12b18a5...c6c601e

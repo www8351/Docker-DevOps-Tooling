@@ -1,6 +1,6 @@
 [project]
 name = "dockerctl"
-version = "0.2.0"
+version = "0.2.1"
 description = "Non-interactive Docker helper CLI for CI/CD pipelines."
 requires-python = ">=3.10"
 dependencies = ["typer>=0.26.8"]
