@@ -13,7 +13,7 @@
 # That was pure attack surface; it is all gone.
 
 # ---- Stage 1: build-time lint gate -----------------------------------------
-FROM alpine:3.20 AS lint
+FROM alpine:3.24 AS lint
 
 # hadolint ignore=DL3018
 RUN apk add --no-cache shellcheck
@@ -23,7 +23,7 @@ COPY counter.sh .
 RUN shellcheck counter.sh
 
 # ---- Stage 2: runtime -------------------------------------------------------
-FROM alpine:3.20 AS runtime
+FROM alpine:3.24 AS runtime
 
 LABEL maintainer="refael malka"
 
