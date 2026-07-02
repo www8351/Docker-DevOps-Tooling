@@ -53,10 +53,13 @@ jobs:
 
       - name: Import-check the CLI
         run: |
-          pip install -e 'cli[test]'
+          pip install -e 'cli[dev]'
           dockerctl version
 
-      - name: Run tests (pytest)
+      - name: Type-check (mypy)
+        run: mypy --config-file cli/pyproject.toml cli/dockerctl cli/tests
+
+      - name: Run tests (pytest, coverage-gated)
         run: pytest cli
 
   image:

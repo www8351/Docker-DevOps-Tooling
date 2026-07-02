@@ -53,10 +53,61 @@ def test_build_builds_args(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Built counter:latest" in result.stdout
 
 
+def test_tag_builds_args(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _record_calls(monkeypatch)
+    result = runner.invoke(app, ["images", "tag", "counter:ci", "ghcr.io/acme/counter:1.0"])
+    assert result.exit_code == 0
+    assert calls[0][0] == ("tag", "counter:ci", "ghcr.io/acme/counter:1.0")
+    assert "Tagged counter:ci" in result.stdout
+
+
+def test_push_builds_args(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _record_calls(monkeypatch)
+    result = runner.invoke(app, ["images", "push", "ghcr.io/acme/counter:1.0"])
+    assert result.exit_code == 0
+    assert calls[0][0] == ("push", "ghcr.io/acme/counter:1.0")
+    assert "pushed ghcr.io/acme/counter:1.0" in result.stdout
+
+
+def test_tag_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args, **kwargs):
+        raise DockerError("nope")
+
+    monkeypatch.setattr(images, "run", boom)
+    result = runner.invoke(app, ["images", "tag", "a", "b"])
+    assert result.exit_code == 1
+
+
+def test_push_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args, **kwargs):
+        raise DockerError("nope")
+
+    monkeypatch.setattr(images, "run", boom)
+    result = runner.invoke(app, ["images", "push", "bogus"])
+    assert result.exit_code == 1
+
+
 def test_pull_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*args, **kwargs):
         raise DockerError("`docker pull` failed: nope")
 
     monkeypatch.setattr(images, "run", boom)
     result = runner.invoke(app, ["images", "pull", "bogus"])
+    assert result.exit_code == 1
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["images", "ls"],
+        ["images", "build", "ctx", "-t", "x:1"],
+        ["images", "rm", "abc123"],
+    ],
+)
+def test_every_command_error_exits_1(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> None:
+    def boom(*a, **kw):
+        raise DockerError("nope")
+
+    monkeypatch.setattr(images, "run", boom)
+    result = runner.invoke(app, args)
     assert result.exit_code == 1

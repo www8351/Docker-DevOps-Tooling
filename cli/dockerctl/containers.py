@@ -108,12 +108,52 @@ def start(container_id: str = typer.Argument(..., help="Container ID or name")) 
 
 @app.command("exec")
 def exec_(
-    container_id: str = typer.Argument(..., help="Container ID or name"),
-    command: Annotated[list[str], typer.Argument(help="Command to run inside the container")] = ...,
+    container_id: Annotated[str, typer.Argument(help="Container ID or name")],
+    command: Annotated[list[str], typer.Argument(help="Command to run inside the container")],
 ) -> None:
     """Run a command inside a running container (non-interactive)."""
     try:
         run("exec", container_id, *command)
+    except DockerError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+
+@app.command()
+def restart(
+    container_id: str = typer.Argument(..., help="Container ID or name"),
+    time: int | None = typer.Option(
+        None, "--time", "-t", help="Seconds to wait for stop before killing"
+    ),
+) -> None:
+    """Restart a container."""
+    args = ["restart"]
+    if time is not None:
+        args += ["--time", str(time)]
+    args.append(container_id)
+    try:
+        run(*args)
+    except DockerError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Restarted {container_id}")
+
+
+@app.command()
+def stats(
+    container_ids: Annotated[
+        list[str] | None, typer.Argument(help="Container IDs or names (default: all running)")
+    ] = None,
+    json_: bool = typer.Option(False, "--json", help="Output one JSON object per line"),
+) -> None:
+    """Show a one-shot resource usage snapshot (always --no-stream: CI-safe)."""
+    args = ["stats", "--no-stream"]
+    if json_:
+        args += ["--format", "{{json .}}"]
+    if container_ids:
+        args += list(container_ids)
+    try:
+        typer.echo(run(*args, capture=True), nl=False)
     except DockerError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc

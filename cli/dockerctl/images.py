@@ -49,6 +49,33 @@ def pull(name: str = typer.Argument(..., help="Image reference, e.g. nginx:lates
     typer.echo(f"OK: pulled {name}")
 
 
+@app.command()
+def tag(
+    source: str = typer.Argument(..., help="Source image reference, e.g. counter:ci"),
+    target: str = typer.Argument(..., help="Target reference, e.g. ghcr.io/acme/counter:1.0"),
+) -> None:
+    """Tag an image with a new reference."""
+    try:
+        run("tag", source, target)
+    except DockerError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Tagged {source} as {target}")
+
+
+@app.command()
+def push(
+    name: str = typer.Argument(..., help="Image reference, e.g. ghcr.io/acme/counter:1.0"),
+) -> None:
+    """Push an image to a registry."""
+    try:
+        run("push", name)
+    except DockerError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"OK: pushed {name}")
+
+
 @app.command("rm")
 def remove(
     image_id: str = typer.Argument(..., help="Image ID or reference to remove"),

@@ -99,10 +99,79 @@ def test_inspect_json(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls[0][0] == ("inspect", "--format", "{{json .}}", "web")
 
 
+def test_restart_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _record_calls(monkeypatch)
+    result = runner.invoke(app, ["containers", "restart", "web"])
+    assert result.exit_code == 0
+    assert calls[0][0] == ("restart", "web")
+    assert "Restarted web" in result.stdout
+
+
+def test_restart_with_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _record_calls(monkeypatch)
+    result = runner.invoke(app, ["containers", "restart", "-t", "5", "web"])
+    assert result.exit_code == 0
+    assert calls[0][0] == ("restart", "--time", "5", "web")
+
+
+def test_stats_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _record_calls(monkeypatch, returns="CPU\n")
+    result = runner.invoke(app, ["containers", "stats"])
+    assert result.exit_code == 0
+    assert calls[0][0] == ("stats", "--no-stream")
+    assert calls[0][1]["capture"] is True
+
+
+def test_stats_json_and_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _record_calls(monkeypatch, returns="{}\n")
+    result = runner.invoke(app, ["containers", "stats", "--json", "web", "db"])
+    assert result.exit_code == 0
+    assert calls[0][0] == ("stats", "--no-stream", "--format", "{{json .}}", "web", "db")
+
+
+def test_restart_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args, **kwargs):
+        raise DockerError("nope")
+
+    monkeypatch.setattr(containers, "run", boom)
+    result = runner.invoke(app, ["containers", "restart", "ghost"])
+    assert result.exit_code == 1
+
+
+def test_stats_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args, **kwargs):
+        raise DockerError("nope")
+
+    monkeypatch.setattr(containers, "run", boom)
+    result = runner.invoke(app, ["containers", "stats"])
+    assert result.exit_code == 1
+
+
 def test_rm_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*args, **kwargs):
         raise DockerError("nope")
 
     monkeypatch.setattr(containers, "run", boom)
     result = runner.invoke(app, ["containers", "rm", "ghost"])
+    assert result.exit_code == 1
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["containers", "ls"],
+        ["containers", "deploy", "img", "-n", "web", "-p", "8080:80"],
+        ["containers", "logs", "web"],
+        ["containers", "stop", "web"],
+        ["containers", "start", "web"],
+        ["containers", "exec", "web", "--", "ls"],
+        ["containers", "inspect", "web"],
+    ],
+)
+def test_every_command_error_exits_1(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> None:
+    def boom(*a, **kw):
+        raise DockerError("nope")
+
+    monkeypatch.setattr(containers, "run", boom)
+    result = runner.invoke(app, args)
     assert result.exit_code == 1

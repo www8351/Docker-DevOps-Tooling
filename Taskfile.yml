@@ -59,8 +59,14 @@ tasks:
       - ruff format cli
       - ruff check --fix cli
 
+  typecheck:
+    desc: Type-check the dockerctl CLI with mypy
+    dir: cli
+    cmds:
+      - mypy dockerctl tests
+
   lint:
-    desc: Run all linters (compose, Dockerfile, shell, python)
+    desc: Run all linters (compose, Dockerfile, shell, python, types)
     cmds:
       - docker compose config --quiet
       - hadolint images/counter/Dockerfile
@@ -68,6 +74,7 @@ tasks:
       - shellcheck images/counter/counter.sh
       - ruff check cli
       - ruff format --check cli
+      - task: typecheck
 
   cli:
     desc: 'Run the dockerctl CLI, e.g. `task cli -- images pull nginx:latest`'
