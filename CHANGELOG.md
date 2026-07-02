@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Observability compose profile**: Prometheus (pinned `v3.13.0`, read-only
+  scrape config), Grafana (`12.3.8`, provisioned datasource + committed
+  container dashboard — zero click-ops), cAdvisor, and nginx-prometheus-exporter
+  (via a non-host-mapped `stub_status` endpoint). All four follow the existing
+  hardening baseline. CI boots the profile and fails if any Prometheus target
+  is down.
+
 ## [0.2.1] - 2026-07-02
 
 ### Added

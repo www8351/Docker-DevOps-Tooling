@@ -1,0 +1,21 @@
+# Prometheus scrape config for the observability profile.
+# Mounted read-only into the prometheus container.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Container-level CPU/memory/network metrics for every service in the stack.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # nginx connection/request metrics via stub_status.
+  - job_name: nginx
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
