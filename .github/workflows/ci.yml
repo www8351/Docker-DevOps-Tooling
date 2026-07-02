@@ -122,15 +122,24 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Boot the hardened stack (healthchecks gate)
+      - name: Boot the hardened stack + observability profile (healthchecks gate)
         run: |
           cp compose/.env.example compose/.env
-          docker compose -f compose/docker-compose.yml up -d --wait --wait-timeout 120
+          docker compose -f compose/docker-compose.yml --profile observability up -d --wait --wait-timeout 180
 
       - name: Probe web endpoints
         run: |
           curl -fsS -o /dev/null -w 'nginx :8080 -> %{http_code}\n' http://localhost:8080
           curl -fsS -o /dev/null -w 'httpd :8081 -> %{http_code}\n' http://localhost:8081
+
+      - name: Probe observability endpoints
+        run: |
+          curl -fsS -o /dev/null -w 'prometheus /-/healthy -> %{http_code}\n' http://localhost:9090/-/healthy
+          curl -fsS -o /dev/null -w 'grafana /api/health -> %{http_code}\n' http://localhost:3000/api/health
+          # Scrape pipeline actually works: every prometheus target reports up.
+          sleep 20
+          curl -fsS http://localhost:9090/api/v1/targets \
+            | python3 -c "import json,sys; t=json.load(sys.stdin)['data']['activeTargets']; bad=[x['labels']['job'] for x in t if x['health']!='up']; print('targets:', len(t), 'down:', bad); sys.exit(1 if bad or not t else 0)"
 
       - name: Show stack state
         run: docker compose -f compose/docker-compose.yml ps
@@ -149,7 +158,7 @@ jobs:
 
       - name: Tear down
         if: always()
-        run: docker compose -f compose/docker-compose.yml down -v
+        run: docker compose -f compose/docker-compose.yml --profile observability down -v
 
   publish:
     needs: [lint, image, stack-test]

@@ -1,0 +1,12 @@
+# Loads every dashboard JSON committed under compose/grafana/dashboards.
+apiVersion: 1
+
+providers:
+  - name: stack-dashboards
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards

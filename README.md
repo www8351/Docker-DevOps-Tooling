@@ -68,6 +68,9 @@ flowchart TD
     Nginx -. mounts .-> Web[web/index.html]
     Counter -. builds .-> Img[images/counter/]
 
+    Compose -. profile: observability .-> Obs[prometheus :9090 · grafana :3000<br/>cadvisor · nginx-exporter]
+    Obs -. scrapes .-> Nginx
+
     CLI --> Docker[(Docker Engine)]
 ```
 
@@ -159,6 +162,25 @@ paths), **all capabilities dropped** (web servers re-add only what port 80
 needs), `no-new-privileges`, CPU/memory limits, and bounded json-file logging.
 The `mgmt` network isolates docker.sock consumers from the public-facing tier.
 The alpine tags are load-bearing: busybox `wget` powers the healthchecks.
+
+### 📈 Observability profile
+
+```bash
+docker compose -f compose/docker-compose.yml --profile observability up -d --wait
+# prometheus → http://localhost:9090      grafana → http://localhost:3000
+```
+
+| Service | Image | Port | Role |
+|---------|-------|------|------|
+| `prometheus` | `prom/prometheus:v3.13.0` | `9090` | scrapes cadvisor + nginx-exporter every 15s |
+| `grafana` | `grafana/grafana:12.3.8` | `3000` | **provisioned** datasource + committed [container dashboard](compose/grafana/dashboards/containers.json) — zero click-ops |
+| `cadvisor` | `gcr.io/cadvisor/cadvisor:v0.55.1` | — | per-container CPU/memory/network metrics |
+| `nginx-exporter` | `nginx/nginx-prometheus-exporter:1.5.1` | — | nginx `stub_status` → Prometheus metrics |
+
+All four follow the same hardening baseline (read-only, `cap_drop: ALL`,
+`no-new-privileges`, memory limits, pinned tags). CI boots this profile too and
+fails the build if any Prometheus target is down. Deliberately out of scope:
+Alertmanager and Loki.
 
 ```bash
 task build    # docker compose --profile tools build  (counter + dockerctl)

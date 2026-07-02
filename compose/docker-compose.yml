@@ -28,6 +28,8 @@ services:
       - "${NGINX_PORT:-8080}:80"
     volumes:
       - ../web:/usr/share/nginx/html:ro
+      # stub_status on :8082 (not host-mapped) for the observability profile.
+      - ./nginx/status.conf:/etc/nginx/conf.d/status.conf:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
@@ -154,6 +156,123 @@ services:
           cpus: "0.50"
           memory: 128M
 
+  # ------------------------------------------------------------------
+  # Observability profile — `docker compose --profile observability up`
+  # Same hardening baseline as the core stack: pinned tags, read-only
+  # rootfs, cap_drop ALL, no-new-privileges, memory limits, bounded logs.
+  # Explicitly out of scope: Alertmanager, Loki.
+  # ------------------------------------------------------------------
+
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:${PROMETHEUS_TAG:-v3.13.0}
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [mgmt]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:${GRAFANA_TAG:-12.3.8}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [mgmt]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+  # Container-level metrics. Needs read-only views of the host and the
+  # docker state directory — that is its job; everything stays :ro.
+  cadvisor:
+    profiles: ["observability"]
+    image: gcr.io/cadvisor/cadvisor:${CADVISOR_TAG:-v0.55.1}
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    networks: [mgmt]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 192M
+
+  # No healthcheck: distroless-style image, no shell to probe; prometheus's
+  # `up` metric for the nginx job covers liveness.
+  nginx-exporter:
+    profiles: ["observability"]
+    image: nginx/nginx-prometheus-exporter:${NGINX_EXPORTER_TAG:-1.5.1}
+    command: ["--nginx.scrape-uri=http://nginx:8082/stub_status"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # web to reach nginx's stub_status, mgmt so prometheus can scrape it.
+    networks: [web, mgmt]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: 32M
+
 networks:
   # Public-facing services; no access to the docker socket tier.
   web:
@@ -162,3 +281,5 @@ networks:
 
 volumes:
   portainer_data:
+  prometheus_data:
+  grafana_data:
