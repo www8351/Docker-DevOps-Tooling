@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- PR template, YAML issue forms (bug/feature), and CODEOWNERS.
+- VHS tape (`docs/assets/demo.tape`) for reproducing the README terminal demo,
+  and a social-preview card image.
+- Live-boot verification of the hardened stack (all healthchecks green,
+  nginx/httpd answering) captured in the README.
+
+### Changed
+
+- README refocused around `dockerctl` as a hardened operations toolkit:
+  highlights strip with deep links, real `docker compose ps` output above the
+  fold, collapsible reference tables, auto-generated ToC instead of a manual one.
+- Design doc moved to `docs/design/production-upgrade-design.md`.
+
 ## [0.2.0] - 2026-07-02
 
 Production upgrade in four phases.

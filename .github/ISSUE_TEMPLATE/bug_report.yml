@@ -1,0 +1,40 @@
+name: Bug report
+description: Something broken in the stack, images, CLI, or CI
+labels: [bug]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - compose stack
+        - dockerctl CLI
+        - counter image
+        - CI / workflows
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you run, what did you expect, what did you get. Quote exact errors.
+      placeholder: |
+        $ dockerctl containers deploy nginx:latest -n web -p 8080:80
+        `docker run` failed: ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `dockerctl --version` / image tag / commit SHA
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Docker version (`docker info --format '{{.ServerVersion}}'`), compose version
+    validations:
+      required: false
