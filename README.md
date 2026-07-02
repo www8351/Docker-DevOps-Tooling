@@ -42,15 +42,8 @@ Declarative infrastructure · a typed Python CLI · a single task-runner entrypo
 ## 💡 Why this exists
 
 This repo began as a set of **interactive bash menus** written years ago to learn Docker.
-They worked at a keyboard, but they were fragile and impossible to automate:
-
-| Old way ❌ | New way ✅ |
-|-----------|-----------|
-| `while [ "True" ]` menus that prompt for input | declarative config + flag-driven CLI |
-| Hardcoded AWS IPs (`3.22.171.145`) | host IP auto-detected / `localhost` |
-| Dead images (`abh1nav/dockerui`) | `portainer/portainer-ce` |
-| Fragile `docker search \| awk` checks | real `docker` exit codes |
-| Nothing runs in CI | linted + validated on every push |
+They worked at a keyboard, but they were fragile and impossible to automate. Everything was
+rebuilt as declarative config, a flag-driven CLI, and CI validation on every push.
 
 The result is **non-interactive, reproducible, and pipeline-safe**.
 
