@@ -1,10 +1,8 @@
 <div align="center">
 
-# 🐳 Docker Labs → Production Tooling
+# 🐳 dockerctl — a hardened Docker operations toolkit
 
-**From 5-year-old interactive bash scripts to a CI/CD-ready Docker toolkit.**
-
-Declarative infrastructure · a typed Python CLI · a single task-runner entrypoint.
+**Typed Python CLI · declarative hardened compose stack · supply-chain-gated CI**
 
 [![CI](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml)
 [![Release](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml)
@@ -20,22 +18,26 @@ Declarative infrastructure · a typed Python CLI · a single task-runner entrypo
 
 ---
 
-## 📖 Table of contents
+A production-grade Docker toolkit: compose owns state, a typed Python CLI owns dynamic
+operations, a Taskfile glues them, and CI enforces everything. Every long-running container
+is **read-only, non-root, capability-dropped, and health-checked**.
 
-- [Why this exists](#-why-this-exists)
-- [Architecture](#-architecture)
-- [Project layout](#-project-layout)
-- [Requirements](#-requirements)
-- [Quick start](#-quick-start)
-- [The stack (docker-compose)](#-the-stack-docker-compose)
-- [DevOps Tooling & Containerization Suite](#-devops-tooling--containerization-suite)
-- [The CLI (dockerctl)](#-the-cli-dockerctl)
-- [Task runner](#-task-runner)
-- [Continuous integration](#-continuous-integration)
-- [Releases & published images](#-releases--published-images)
-- [Design principles](#-design-principles)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing / Security / Changelog](#-contributing--security--changelog)
+```console
+$ docker compose ps
+NAME                  IMAGE                           STATUS                    PORTS
+compose-counter-1     compose-counter                 Up 18 seconds (healthy)
+compose-httpd-1       httpd:2.4-alpine                Up 18 seconds (healthy)   0.0.0.0:8081->80/tcp
+compose-nginx-1       nginx:1.27-alpine               Up 18 seconds (healthy)   0.0.0.0:8080->80/tcp
+compose-portainer-1   portainer/portainer-ce:2.27.9   Up 18 seconds             0.0.0.0:9000->9000/tcp
+```
+
+## ⚡ Highlights
+
+- **78 MB Ubuntu → ~7 MB hardened Alpine** — the [before/after](#-counter--from-78-mb-of-attack-surface-to-a-few-mb) of the counter image
+- **Read-only containers, `cap_drop: ALL`, `no-new-privileges`** — see [`compose/docker-compose.yml`](compose/docker-compose.yml)
+- **SHA-pinned actions, Trivy gate, CycloneDX SBOMs** — see [`ci.yml`](.github/workflows/ci.yml)
+- **Typed CLI: mypy strict, 45 tests, 100% coverage** — see [`cli/`](cli/)
+- **Released [v0.2.0](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.2.0)** with semver images on GHCR + a [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -244,6 +246,16 @@ Every command returns a meaningful **exit code** and writes errors to stderr.
 pip install -e cli            # installs the `dockerctl` command
 ```
 
+```bash
+dockerctl containers deploy nginx:latest -n web -p 8080:80
+dockerctl containers stats --json
+dockerctl images push ghcr.io/acme/counter:1.0
+dockerctl --version           # or -V, or the `version` subcommand
+```
+
+<details>
+<summary><b>Full command reference</b> (2 groups, 14 commands)</summary>
+
 | Command | Replaces | Example |
 |---------|----------|---------|
 | `images ls [--json]` | menu listing | `dockerctl images ls --json` |
@@ -258,11 +270,9 @@ pip install -e cli            # installs the `dockerctl` command
 | `containers logs / stop / start / restart` | menu ops | `dockerctl containers restart -t 5 web` |
 | `containers exec / inspect / stats` | menu ops | `dockerctl containers stats --json` |
 
-```bash
-dockerctl --version           # or -V, or the `version` subcommand
-dockerctl --help              # full command tree
-dockerctl images --help       # per-group help
-```
+`dockerctl --help` prints the full command tree; each group has its own `--help`.
+
+</details>
 
 The CLI is **mypy-strict clean** and its test suite is **coverage-gated at
 90%** (currently 100%); the version is single-sourced from `pyproject.toml`.
@@ -340,6 +350,9 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
 
 ## 🧰 Troubleshooting
 
+<details>
+<summary><b>Common issues and fixes</b></summary>
+
 | Symptom | Fix |
 |---------|-----|
 | `task: command not found` | Install Task, or use the `docker compose …` equivalents above. |
@@ -348,6 +361,8 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
 | `dockerctl: command not found` | Run `pip install -e cli` first. |
 | Permission denied on docker socket | Add your user to the `docker` group, or run with `sudo`. |
 | A service is unhealthy / crash-looping | Check `docker compose ps` + `task logs`; the stack runs read-only — see the tmpfs lists in the compose file. |
+
+</details>
 
 ---
 
@@ -360,5 +375,5 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
 ---
 
 <div align="center">
-<sub>Built as a learning project, refactored into production-grade tooling.</sub>
+<sub>From interactive bash menus to a supply-chain-gated toolkit — the <a href="CHANGELOG.md">CHANGELOG</a> tells the story.</sub>
 </div>

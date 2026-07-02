@@ -1,13 +1,15 @@
-# 4-Phase Production Upgrade — Docker-DevOps-Tooling
+# Design: 4-Phase Production Upgrade
+
+Design document for the v0.2.0 production upgrade, written before implementation and
+executed as four large, self-contained commits so the git history reads as a progression.
 
 ## Context
 
-The repo is a solid hardened Docker toolkit (multi-stage non-root images, Trivy-gated CI, 23 CLI tests) but is missing production pillars: no healthchecks/resource-limits/networks in compose, `latest` tags, unpinned CI actions, no registry publish, no release automation, no mypy/coverage, no dependabot, no hygiene docs. User wants a phased upgrade, **each phase = one large commit pushed directly to `main`** (user's explicit choice), so git history shows the progression. Each commit must leave CI green and be self-contained.
+The repo was a solid hardened Docker toolkit (multi-stage non-root images, Trivy-gated CI, 23 CLI tests) but was missing production pillars: no healthchecks/resource-limits/networks in compose, `latest` tags, unpinned CI actions, no registry publish, no release automation, no mypy/coverage, no dependabot, no hygiene docs. Plan: a phased upgrade, **each phase = one large commit**, each leaving CI green and self-contained.
 
-Verified facts:
-- Remote: `https://github.com/www8351/Docker-DevOps-Tooling.git` → GHCR images: `ghcr.io/www8351/docker-devops-tooling/<name>`. README CI badge points at wrong repo (`www8351/Bash`) — fix in phase 4.
-- `cli/dockerctl/containers.py:112` — `exec_` uses `Annotated[...] = ...` (ellipsis default), fails strict mypy; fix in phase 3.
-- Per repo `CLAUDE.md` protocol: every phase commit also updates `STATUS.md`/`PROGRESS.md` (+ `DECISIONS.md` when choices made). NOTE: these files are currently git-ignored — lifecycle updates happen locally, do NOT un-ignore them.
+Verified facts at design time:
+- Remote: `https://github.com/www8351/Docker-DevOps-Tooling.git` → GHCR images: `ghcr.io/www8351/docker-devops-tooling/<name>`. README CI badge pointed at the wrong repo (`www8351/Bash`) — fixed in phase 4.
+- `cli/dockerctl/containers.py:112` — `exec_` used `Annotated[...] = ...` (ellipsis default), fails strict mypy; fixed in phase 3.
 - Windows dev box; Docker daemon may not run locally. Local verification = `docker compose config`, pytest, ruff, mypy. Runtime/publish verification = GitHub Actions after push (`gh run watch`). Publish failures → fix-forward commits.
 
 ---
@@ -97,6 +99,5 @@ Verified facts:
 ## Cross-phase
 
 - Order matters: phase 2 publish plumbing (login/metadata/cache) proven on main before phase 4 tags depend on it; phase 3 single-source version before phase 4 bump.
-- Each commit: normal-style conventional commit message, plus local lifecycle-file updates (STATUS/PROGRESS/DECISIONS — git-ignored, not in commits).
+- Each commit: conventional commit message describing the full phase.
 - Look up live at implementation: newest portainer 2.27.x tag, action SHAs, mirrors-mypy rev, trivy-action version.
-- Brainstorming protocol: also save spec copy to `docs/superpowers/specs/2026-07-02-production-upgrade-design.md` in phase-1 commit (or skip if user prefers — plan default: include).
