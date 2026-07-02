@@ -4,43 +4,134 @@
 # Usage:
 #   docker compose --env-file .env up -d
 #   docker compose config        # validate without starting anything
+#
+# Hardening baseline (applied per service below):
+#   - pinned image tags (overridable via .env; alpine variants provide busybox
+#     wget for healthchecks)
+#   - healthchecks on every long-running service that can support one
+#   - two network tiers: `web` (public-facing) and `mgmt` (docker.sock consumers)
+#   - read-only root filesystems with tmpfs for known write paths
+#   - all capabilities dropped, only the minimum added back
+#   - no-new-privileges, CPU/memory limits, bounded json-file logging
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   # Static web server, serving ../web read-only (was Create_Web_Server.sh / nginx_exec.sh).
   nginx:
-    image: nginx:${NGINX_TAG:-latest}
+    image: nginx:${NGINX_TAG:-1.27-alpine}
     ports:
       - "${NGINX_PORT:-8080}:80"
     volumes:
       - ../web:/usr/share/nginx/html:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID, NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    networks: [web]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
 
   # Apache, replacing the old (nonexistent) "apache2" image with the real httpd.
   httpd:
-    image: httpd:${HTTPD_TAG:-latest}
+    image: httpd:${HTTPD_TAG:-2.4-alpine}
     ports:
       - "${HTTPD_PORT:-8081}:80"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /usr/local/apache2/logs # httpd.pid lives here
+      - /tmp
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID, NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    networks: [web]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
 
   # Docker management UI, replacing the dead abh1nav/dockerui.
+  # No healthcheck: portainer-ce is scratch-based (no shell, wget, or curl),
+  # so there is no exec probe to run; `restart: unless-stopped` covers crashes.
+  # The socket stays read-write on purpose — Portainer manages the engine.
   portainer:
-    image: portainer/portainer-ce:${PORTAINER_TAG:-latest}
+    image: portainer/portainer-ce:${PORTAINER_TAG:-2.27.9}
     ports:
       - "${PORTAINER_PORT:-9000}:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [mgmt]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
 
   # Custom image built from ../images/counter (was lab2 Dockerfile + counter.sh).
+  # `init: true` so the sleep loop gets a proper PID 1 and honors SIGTERM.
   counter:
     build:
       context: ../images/counter
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f counter.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [web]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: 32M
 
   # The dockerctl CLI image. It is a one-shot tool, not a daemon, so it lives
   # behind the "tools" profile: `docker compose --profile tools build dockerctl`
   # builds it without it ever starting on `docker compose up`.
+  # No healthcheck: it runs a command and exits.
   dockerctl:
     profiles: ["tools"]
     build:
@@ -49,6 +140,25 @@ services:
     # Mount the host socket to drive the real engine; safe to omit for --help.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [mgmt]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+
+networks:
+  # Public-facing services; no access to the docker socket tier.
+  web:
+  # Socket consumers (portainer, dockerctl), isolated from the web tier.
+  mgmt:
 
 volumes:
   portainer_data:
