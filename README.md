@@ -3,6 +3,7 @@
 # 🐳 dockerctl — a hardened Docker operations toolkit
 
 **Typed Python CLI · declarative hardened compose stack · supply-chain-gated CI**
+*CLI פייתון מטופס · סטאק compose מוקשח ודקלרטיבי · CI עם שערי אבטחת שרשרת-אספקה*
 
 [![CI](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml)
 [![Release](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml)
@@ -18,9 +19,34 @@
 
 ---
 
-A production-grade Docker toolkit: compose owns state, a typed Python CLI owns dynamic
-operations, a Taskfile glues them, and CI enforces everything. Every long-running container
-is **read-only, non-root, capability-dropped, and health-checked**.
+## 🌍 What is this? · מה זה?
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🇬🇧 English
+
+A production-grade Docker toolkit: **compose owns state**, a **typed Python CLI** owns
+dynamic operations, a **Taskfile** glues them, and **CI enforces everything**. Every
+long-running container is **read-only, non-root, capability-dropped, and health-checked**.
+
+</td>
+<td width="50%" valign="top">
+
+<div dir="rtl">
+
+### 🇮🇱 עברית
+
+ערכת כלים ל-Docker ברמת production: **compose מחזיק את המצב**, **CLI פייתון מטופס** מחזיק
+את הפעולות הדינמיות, **Taskfile** מחבר ביניהם, ו-**CI אוכף הכול**. כל קונטיינר ארוך-טווח
+רץ **קריאה-בלבד, ללא root, עם הפלת יכולות, ובדיקת בריאות**.
+
+</div>
+
+</td>
+</tr>
+</table>
 
 ```console
 $ docker compose ps
