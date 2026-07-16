@@ -3,7 +3,7 @@ name = "dockerctl"
 version = "0.2.1"
 description = "Non-interactive Docker helper CLI for CI/CD pipelines."
 requires-python = ">=3.10"
-dependencies = ["typer>=0.26.8"]
+dependencies = ["typer>=0.27.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=9.1.1", "pytest-cov>=7.1.0"]
