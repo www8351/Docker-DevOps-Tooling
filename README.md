@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐳 dockerctl — a hardened Docker operations toolkit
+# 🐳 dockerctl a hardened Docker operations toolkit
 
 **Typed Python CLI · declarative hardened compose stack · supply-chain-gated CI**
 *CLI פייתון מטופס · סטאק compose מוקשח ודקלרטיבי · CI עם שערי אבטחת שרשרת-אספקה*
@@ -59,10 +59,10 @@ compose-portainer-1   portainer/portainer-ce:2.27.9   Up 18 seconds             
 
 ## ⚡ Highlights
 
-- **78 MB Ubuntu → ~7 MB hardened Alpine** — the [before/after](#-counter--from-78-mb-of-attack-surface-to-a-few-mb) of the counter image
-- **Read-only containers, `cap_drop: ALL`, `no-new-privileges`** — see [`compose/docker-compose.yml`](compose/docker-compose.yml)
-- **SHA-pinned actions, Trivy gate, CycloneDX SBOMs** — see [`ci.yml`](.github/workflows/ci.yml)
-- **Typed CLI: mypy strict, 45 tests, 100% coverage** — see [`cli/`](cli/)
+- **78 MB Ubuntu → ~7 MB hardened Alpine** the [before/after](#-counter--from-78-mb-of-attack-surface-to-a-few-mb) of the counter image
+- **Read-only containers, `cap_drop: ALL`, `no-new-privileges`** see [`compose/docker-compose.yml`](compose/docker-compose.yml)
+- **SHA-pinned actions, Trivy gate, CycloneDX SBOMs** see [`ci.yml`](.github/workflows/ci.yml)
+- **Typed CLI: mypy strict, 45 tests, 100% coverage** see [`cli/`](cli/)
 - **Released [v0.2.0](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.2.0)** with semver images on GHCR + a [CHANGELOG](CHANGELOG.md)
 
 ---
@@ -100,7 +100,7 @@ flowchart TD
     CLI --> Docker[(Docker Engine)]
 ```
 
-**Separation of concerns** — each tool owns exactly one job:
+**Separation of concerns** each tool owns exactly one job:
 
 | Layer | Owns | Tool |
 |-------|------|------|
@@ -200,8 +200,8 @@ docker compose -f compose/docker-compose.yml --profile observability up -d --wai
 |---------|-------|------|------|
 | `prometheus` | `prom/prometheus:v3.13.0` | `9090` | scrapes cadvisor + nginx-exporter every 15s |
 | `grafana` | `grafana/grafana:12.3.8` | `3000` | **provisioned** datasource + committed [container dashboard](compose/grafana/dashboards/containers.json) — zero click-ops |
-| `cadvisor` | `gcr.io/cadvisor/cadvisor:v0.55.1` | — | per-container CPU/memory/network metrics |
-| `nginx-exporter` | `nginx/nginx-prometheus-exporter:1.5.1` | — | nginx `stub_status` → Prometheus metrics |
+| `cadvisor` | `gcr.io/cadvisor/cadvisor:v0.55.1` | per-container CPU/memory/network metrics |
+| `nginx-exporter` | `nginx/nginx-prometheus-exporter:1.5.1` | nginx `stub_status` → Prometheus metrics |
 
 All four follow the same hardening baseline (read-only, `cap_drop: ALL`,
 `no-new-privileges`, memory limits, pinned tags). CI boots this profile too and
@@ -220,7 +220,7 @@ task clean    # down + remove volumes
 ## 🛡 DevOps Tooling & Containerization Suite
 
 Two purpose-built images, each authored as a **multi-stage build on a minimal Alpine base
-and run by an unprivileged user**. The goal is small, reproducible, and low-attack-surface —
+and run by an unprivileged user**. The goal is small, reproducible, and low-attack-surface
 the build toolchain never reaches the final image, and neither does root.
 
 | Image | Source | Base | Multi-stage layout | Runs as |
@@ -228,7 +228,7 @@ the build toolchain never reaches the final image, and neither does root.
 | `counter` | [`images/counter/`](images/counter/) | `alpine:3.20` | `lint` (shellcheck gate) → `runtime` | non-root `app` (UID 10001) |
 | `dockerctl` | [`cli/`](cli/) | `python:3.12-alpine` | `builder` (venv via `python:3.12-slim`) → `runtime` | non-root `app` (UID 10001) |
 
-### 🔢 `counter` — from 78 MB of attack surface to a few MB
+### 🔢 `counter` from 78 MB of attack surface to a few MB
 
 The original image ran a trivial bash loop on `ubuntu:24.04` while installing
 `openssh-server`, `sshpass`, `tcpdump`, `net-tools`, and `python3` — **none of which the
@@ -243,16 +243,16 @@ script uses**. `sshpass` and `tcpdump` alone are exactly what an image scanner f
 | Script | bash + dead `/var/log/my` symlinks | POSIX `sh`, no bash needed |
 
 **Hardening choices**
-- **Build-time lint gate** — stage 1 runs `shellcheck` against `counter.sh`; a broken script
+- **Build-time lint gate** stage 1 runs `shellcheck` against `counter.sh`; a broken script
   fails `docker build`, so bad shell never reaches an image.
-- **Carry only what runs** — the runtime stage copies *just* the validated script; every package
+- **Carry only what runs** the runtime stage copies *just* the validated script; every package
   from the old image is gone.
-- **Non-root by construction** — a fixed-ID `app` user owns nothing it doesn't need; the script
+- **Non-root by construction** a fixed-ID `app` user owns nothing it doesn't need; the script
   is installed read-and-execute only (`0555`).
-- **POSIX `sh`** — rewriting the one bashism (`((counter++))` → `$((counter + 1))`) lets it run on
+- **POSIX `sh`** rewriting the one bashism (`((counter++))` → `$((counter + 1))`) lets it run on
   Alpine's busybox `ash`, so no `bash` package is installed at all.
 
-### 🐍 `dockerctl` — multi-stage Python, no toolchain in the runtime
+### 🐍 `dockerctl` multi-stage Python, no toolchain in the runtime
 
 ```bash
 docker compose --profile tools build dockerctl      # or: docker build -t dockerctl cli
@@ -266,14 +266,14 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 ```
 
 **Hardening choices**
-- **Builder/runtime split** — the `builder` stage uses a full `python:3.12-slim` to install the
+- **Builder/runtime split** the `builder` stage uses a full `python:3.12-slim` to install the
   project into an isolated venv at `/opt/venv`; the runtime stage copies only that venv, so pip,
   build tools, and caches never ship.
-- **Minimal runtime** — `python:3.12-alpine` plus only `docker-cli` (the client, not a daemon),
+- **Minimal runtime** `python:3.12-alpine` plus only `docker-cli` (the client, not a daemon),
   because `dockerctl` shells out to `docker` (see [`cli/dockerctl/_docker.py`](cli/dockerctl/_docker.py)).
 - **Non-root `app` user** and a lean build context via [`cli/.dockerignore`](cli/.dockerignore)
   (tests, caches, and the Dockerfile itself are excluded).
-- **No socket baked in** — the engine is reached only through an explicitly mounted
+- **No socket baked in** the engine is reached only through an explicitly mounted
   `/var/run/docker.sock` at run time, so the image grants itself nothing.
 
 ### 🔎 Scanned in CI
@@ -287,7 +287,7 @@ Both images are built and scanned by **Trivy** on every push (see
 ## 🐍 The CLI (dockerctl)
 
 A small **non-interactive** CLI for the dynamic operations compose shouldn't own
-(ad-hoc pulls, removals, one-off deploys). Flags only — no prompts — so it is safe in CI.
+(ad-hoc pulls, removals, one-off deploys). Flags only no prompts so it is safe in CI.
 Every command returns a meaningful **exit code** and writes errors to stderr.
 
 ```bash
@@ -347,8 +347,8 @@ task cli -- images pull nginx:latest   # proxy to dockerctl
 
 ## 🤖 Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request —
-**fully unattended, nothing prompts** — under least-privilege permissions with
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request
+**fully unattended, nothing prompts** under least-privilege permissions with
 every action **pinned to a commit SHA** and per-ref concurrency:
 
 **`lint` job**
@@ -388,11 +388,11 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
 
 ## 🎯 Design principles
 
-- **Declarative over imperative** — compose describes the desired state; we don't script `docker run`.
-- **No interactivity** — flags and env vars only, so everything works in a pipeline.
-- **Meaningful exit codes** — failures fail loudly and stop CI.
-- **One entrypoint** — Taskfile, so nobody memorizes long commands.
-- **Right tool per job** — compose for infra, Python for logic, Task to glue, CI to enforce.
+- **Declarative over imperative** compose describes the desired state; we don't script `docker run`.
+- **No interactivity** flags and env vars only, so everything works in a pipeline.
+- **Meaningful exit codes** failures fail loudly and stop CI.
+- **One entrypoint** Taskfile, so nobody memorizes long commands.
+- **Right tool per job** compose for infra, Python for logic, Task to glue, CI to enforce.
 
 ---
 
@@ -409,7 +409,7 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
 | `dockerctl: command not found` | Run `pip install -e cli` first. |
 | Permission denied on docker socket | Add your user to the `docker` group, or run with `sudo`. |
 | `dockerctl` container can't reach the socket | The image is non-root; grant it the socket's group: `docker run --group-add "$(stat -c '%g' /var/run/docker.sock)" …` |
-| A service is unhealthy / crash-looping | Check `docker compose ps` + `task logs`; the stack runs read-only — see the tmpfs lists in the compose file. |
+| A service is unhealthy / crash-looping | Check `docker compose ps` + `task logs`; the stack runs read-only see the tmpfs lists in the compose file. |
 
 </details>
 
@@ -417,9 +417,9 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
 
 ## 🤝 Contributing / Security / Changelog
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — setup, quality gates, conventions, release steps
-- [SECURITY.md](SECURITY.md) — reporting vulnerabilities, security posture
-- [CHANGELOG.md](CHANGELOG.md) — curated, Keep-a-Changelog format
+- [CONTRIBUTING.md](CONTRIBUTING.md) setup, quality gates, conventions, release steps
+- [SECURITY.md](SECURITY.md) reporting vulnerabilities, security posture
+- [CHANGELOG.md](CHANGELOG.md) curated, Keep-a-Changelog format
 
 ---
 
