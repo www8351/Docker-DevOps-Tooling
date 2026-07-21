@@ -13,7 +13,7 @@ dev = ["dockerctl[test]", "mypy>=2.3.0", "ruff>=0.15.21"]
 dockerctl = "dockerctl.__main__:app"
 
 [build-system]
-requires = ["setuptools>=82.0.1"]
+requires = ["setuptools>=83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
