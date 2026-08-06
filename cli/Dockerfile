@@ -32,7 +32,7 @@ COPY . .
 RUN pip install .
 
 # ---- Stage 2: runtime -------------------------------------------------------
-FROM python:3.12-alpine AS runtime
+FROM python:3.13-alpine AS runtime
 
 LABEL maintainer="refael malka"
 
