@@ -63,7 +63,7 @@ compose-portainer-1   portainer/portainer-ce:2.27.9   Up 18 seconds             
 - **Read-only containers, `cap_drop: ALL`, `no-new-privileges`** see [`compose/docker-compose.yml`](compose/docker-compose.yml)
 - **SHA-pinned actions, Trivy gate, CycloneDX SBOMs** see [`ci.yml`](.github/workflows/ci.yml)
 - **Typed CLI: mypy strict, 45 tests, 100% coverage** see [`cli/`](cli/)
-- **Released [v0.2.0](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.2.0)** with semver images on GHCR + a [CHANGELOG](CHANGELOG.md)
+- **Released [v0.2.1](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.2.1)** — multi-arch, cosign-signed, attested images on GHCR + a [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -257,7 +257,7 @@ script uses**. `sshpass` and `tcpdump` alone are exactly what an image scanner f
 ```bash
 docker compose --profile tools build dockerctl      # or: docker build -t dockerctl cli
 
-docker run --rm dockerctl version                   # → 0.1.0  (no socket needed)
+docker run --rm dockerctl version                   # prints the packaged version (no socket needed)
 docker run --rm dockerctl images --help
 
 # drive the real engine by mounting the host socket:
@@ -364,8 +364,16 @@ every action **pinned to a commit SHA** and per-ref concurrency:
 - scans with **Trivy** (gates HIGH/CRITICAL, `ignore-unfixed`)
 - generates a **CycloneDX SBOM** per image, uploaded as an artifact
 
+**`stack-test` job**
+- boots the hardened stack **with the observability profile** via `docker compose up -d --wait`,
+  so every healthcheck becomes a CI assertion
+- probes the web and observability endpoints, then runs the built `dockerctl` image against the
+  runner's live Docker socket
+
 **`publish` job** (pushes to `main` only)
-- pushes both images to **GHCR** tagged `latest` + short commit SHA
+- pushes both images to **GHCR** tagged `latest` + short commit SHA, built **multi-arch**
+  (`linux/amd64` + `linux/arm64`) with BuildKit provenance and SBOM attestations
+- signs each image with **cosign** (keyless, OIDC)
 
 [Dependabot](.github/dependabot.yml) keeps GitHub Actions, pip, and both
 Dockerfiles updated weekly.
@@ -375,13 +383,14 @@ Dockerfiles updated weekly.
 ## 🚢 Releases & published images
 
 Tagging `vX.Y.Z` (matching `cli/pyproject.toml` — the workflow asserts it)
-fires [`release.yml`](.github/workflows/release.yml): semver-tagged images on
-GHCR plus an auto-generated GitHub Release. Curated notes live in
+fires [`release.yml`](.github/workflows/release.yml): multi-arch, cosign-signed,
+semver-tagged images on GHCR plus an auto-generated GitHub Release. The current
+released version is **0.2.1**. Curated notes live in
 [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-docker pull ghcr.io/www8351/docker-devops-tooling/dockerctl:0.2.0
-docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.0
+docker pull ghcr.io/www8351/docker-devops-tooling/dockerctl:0.2.1
+docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.1
 ```
 
 ---
