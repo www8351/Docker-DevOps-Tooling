@@ -52,6 +52,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  counter.sh ignored SIGTERM when it ran as PID 1, as it will in a Kubernetes pod (compose hides this with init: true), so every stop waited out the grace period and ended in SIGKILL.
+Action: counter.sh traps INT and TERM and exits 0. Local, alpine 3.24 as 10001 with the script mounted and no init: docker stop took 0.45s with exit 0, against 5.17s and exit 137 for the previous script; --healthcheck still passes; shellcheck clean.
+Status: DONE
+
 Issue:  compose httpd still ran its master as root and re-added CHOWN, SETGID, SETUID and NET_BIND_SERVICE to bind port 80 (D9).
 Action: New compose/httpd/httpd.conf (Listen 8080, pid and mutexes in /tmp, logs to stdout and stderr, ServerTokens Prod, TraceEnable Off, nosniff header, root directory denied); compose runs httpd as 82:82 with it mounted over the image config, only /tmp on tmpfs and no cap_add. README and SECURITY.md updated. Local: docker compose up --wait reported compose-httpd-1 Healthy, user=82:82 ro=true capadd=[] capdrop=[ALL], every process www-data, :8081 returned 200; under docker run the same config answered TRACE with 405 and a path outside htdocs with 404.
 Status: DONE

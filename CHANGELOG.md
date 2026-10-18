@@ -83,6 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - nginx moves to `nginxinc/nginx-unprivileged` 1.30 stable on port 8080;
   Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
   nginx-prometheus-exporter to their latest patch releases.
+- counter exits promptly on SIGTERM when it runs as PID 1 (Kubernetes, or
+  `docker run` without `--init`) instead of waiting to be killed.
 - counter moves to Alpine 3.24 with a heartbeat healthcheck
   (`counter.sh --healthcheck`) that fails when the loop stalls; the old
   `pgrep` probe always matched docker-init and could never fail.
