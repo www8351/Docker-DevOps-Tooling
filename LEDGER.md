@@ -68,6 +68,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  Dependabot tracked pip (now replaced by uv.lock), opened one PR per action, watched each Dockerfile through a separate entry, and had no release cooldown (zizmor dependabot-cooldown, 5 findings).
+Action: Dependabot ecosystems: github-actions (grouped into one PR), uv for /cli (minor and patch grouped), docker with directories /cli and /images/counter (also tracks the pinned uv stage), docker-compose for /compose; every ecosystem waits 7 days (cooldown default-days 7). Local: check-jsonschema vendor.dependabot ok, zizmor No findings.
+Status: DONE
+
 Issue:  lint failed on c554a50: hadolint-action v3.5.0 bundles hadolint v2.15.1, which reports DL3066 info: Non-numeric user-id may not be resolvable by host system, on USER app in both Dockerfiles, and the action fails at threshold info.
 Action: Reproduced locally with hadolint/hadolint:v2.15.1-alpine (v2.14.0 does not have the rule). Both Dockerfiles now use USER 10001:10001, which Kubernetes runAsNonRoot also needs to verify a non-root user. Pre-commit hadolint pin moved to v2.15.1. Local: hadolint v2.15.1 with --failure-threshold info clean on both Dockerfiles.
 Status: DONE
