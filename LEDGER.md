@@ -16,8 +16,8 @@ Status: IN PROGRESS
 
 ### Security and correctness
 
-Issue:  CLI passes positional arguments without a -- separator. containers deploy runs containers with none of the repo hardening.
-Action: Phase 3.3 and 3.4 (D12).
+Issue:  containers deploy runs containers with none of the repo hardening.
+Action: Phase 3.4 (D12).
 Status: OPEN
 
 ### CI and reproducibility
@@ -55,6 +55,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Positional values went straight into docker argv, so a value starting with a dash would be parsed as a docker flag.
+Action: Every docker call in containers.py and images.py now puts -- before its positional arguments. Tests updated first (16 failed), then implemented; new test passes a container named -f through as a name. Local: 46 passed, coverage 100.00%, mypy and ruff clean. Live against docker 29.8.2: images pull, build, tag, push (to a local registry), rm and containers deploy, logs, inspect, stats, exec, restart, stop, start, rm all ok.
+Status: DONE
 
 Issue:  The same try, DockerError, echo to stderr, Exit(1) block was copied 16 times across containers.py (10) and images.py (6).
 Action: New cli/dockerctl/_cli.py with a docker_errors() context manager; every command body now runs under it. Behaviour unchanged. Local: ruff clean, mypy Success no issues in 12 source files, 45 passed, coverage 100.00%.

@@ -14,7 +14,7 @@ def test_pull_builds_args(runner: CliRunner, record_calls: RecordCalls) -> None:
     calls = record_calls(images)
     result = runner.invoke(app, ["images", "pull", "nginx:latest"])
     assert result.exit_code == 0
-    assert calls[0][0] == ("pull", "nginx:latest")
+    assert calls[0][0] == ("pull", "--", "nginx:latest")
     assert "pulled nginx:latest" in result.stdout
 
 
@@ -22,7 +22,7 @@ def test_rm_force(runner: CliRunner, record_calls: RecordCalls) -> None:
     calls = record_calls(images)
     result = runner.invoke(app, ["images", "rm", "--force", "abc123"])
     assert result.exit_code == 0
-    assert calls[0][0] == ("rmi", "--force", "abc123")
+    assert calls[0][0] == ("rmi", "--force", "--", "abc123")
 
 
 def test_ls_json(runner: CliRunner, record_calls: RecordCalls) -> None:
@@ -36,7 +36,7 @@ def test_build_builds_args(runner: CliRunner, record_calls: RecordCalls) -> None
     calls = record_calls(images)
     result = runner.invoke(app, ["images", "build", "images/counter", "-t", "counter:latest"])
     assert result.exit_code == 0
-    assert calls[0][0] == ("build", "-t", "counter:latest", "images/counter")
+    assert calls[0][0] == ("build", "-t", "counter:latest", "--", "images/counter")
     assert "Built counter:latest" in result.stdout
 
 
@@ -44,7 +44,7 @@ def test_tag_builds_args(runner: CliRunner, record_calls: RecordCalls) -> None:
     calls = record_calls(images)
     result = runner.invoke(app, ["images", "tag", "counter:ci", "ghcr.io/acme/counter:1.0"])
     assert result.exit_code == 0
-    assert calls[0][0] == ("tag", "counter:ci", "ghcr.io/acme/counter:1.0")
+    assert calls[0][0] == ("tag", "--", "counter:ci", "ghcr.io/acme/counter:1.0")
     assert "Tagged counter:ci" in result.stdout
 
 
@@ -52,7 +52,7 @@ def test_push_builds_args(runner: CliRunner, record_calls: RecordCalls) -> None:
     calls = record_calls(images)
     result = runner.invoke(app, ["images", "push", "ghcr.io/acme/counter:1.0"])
     assert result.exit_code == 0
-    assert calls[0][0] == ("push", "ghcr.io/acme/counter:1.0")
+    assert calls[0][0] == ("push", "--", "ghcr.io/acme/counter:1.0")
     assert "pushed ghcr.io/acme/counter:1.0" in result.stdout
 
 

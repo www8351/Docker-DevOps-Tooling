@@ -2,6 +2,10 @@
 
 Replaces remove_Container.sh and the deploy branches of the old menu scripts.
 All non-interactive: arguments and flags only, so it is safe to call from CI.
+
+Every docker call ends option parsing with `--` before the positional
+arguments, so a name or reference that starts with a dash is never read as a
+docker flag.
 """
 
 from __future__ import annotations
@@ -40,7 +44,7 @@ def remove(
     args = ["rm"]
     if force:
         args.append("--force")
-    args.append(container_id)
+    args += ["--", container_id]
     with docker_errors():
         run(*args)
     typer.echo(f"Removed container {container_id}")
@@ -54,7 +58,7 @@ def deploy(
 ) -> None:
     """Run a detached container with a name and port mapping."""
     with docker_errors():
-        run("run", "-d", "--name", name, "-p", port, image)
+        run("run", "-d", "--name", name, "-p", port, "--", image)
     typer.echo(f"Deployed {name} from {image} on {port}")
 
 
@@ -68,7 +72,7 @@ def logs(
     args = ["logs", "--tail", tail]
     if follow:
         args.append("--follow")
-    args.append(container_id)
+    args += ["--", container_id]
     with docker_errors():
         run(*args)
 
@@ -77,7 +81,7 @@ def logs(
 def stop(container_id: str = typer.Argument(..., help="Container ID or name")) -> None:
     """Stop a running container."""
     with docker_errors():
-        run("stop", container_id)
+        run("stop", "--", container_id)
     typer.echo(f"Stopped {container_id}")
 
 
@@ -85,7 +89,7 @@ def stop(container_id: str = typer.Argument(..., help="Container ID or name")) -
 def start(container_id: str = typer.Argument(..., help="Container ID or name")) -> None:
     """Start a stopped container."""
     with docker_errors():
-        run("start", container_id)
+        run("start", "--", container_id)
     typer.echo(f"Started {container_id}")
 
 
@@ -96,7 +100,7 @@ def exec_(
 ) -> None:
     """Run a command inside a running container (non-interactive)."""
     with docker_errors():
-        run("exec", container_id, *command)
+        run("exec", "--", container_id, *command)
 
 
 @app.command()
@@ -110,7 +114,7 @@ def restart(
     args = ["restart"]
     if time is not None:
         args += ["--time", str(time)]
-    args.append(container_id)
+    args += ["--", container_id]
     with docker_errors():
         run(*args)
     typer.echo(f"Restarted {container_id}")
@@ -128,7 +132,7 @@ def stats(
     if json_:
         args += ["--format", "{{json .}}"]
     if container_ids:
-        args += list(container_ids)
+        args += ["--", *container_ids]
     with docker_errors():
         typer.echo(run(*args, capture=True), nl=False)
 
@@ -142,6 +146,6 @@ def inspect(
     args = ["inspect"]
     if json_:
         args += ["--format", "{{json .}}"]
-    args.append(container_id)
+    args += ["--", container_id]
     with docker_errors():
         typer.echo(run(*args, capture=True), nl=False)

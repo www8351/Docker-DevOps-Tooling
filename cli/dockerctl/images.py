@@ -1,4 +1,8 @@
-"""Image subcommands: pull and remove. Replaces pull_images.sh / remove_images.sh."""
+"""Image subcommands. Replaces pull_images.sh / remove_images.sh.
+
+Every docker call ends option parsing with `--` before the positional
+arguments, so a reference that starts with a dash is never read as a flag.
+"""
 
 from __future__ import annotations
 
@@ -29,7 +33,7 @@ def build(
 ) -> None:
     """Build an image from a Dockerfile context."""
     with docker_errors():
-        run("build", "-t", tag, path)
+        run("build", "-t", tag, "--", path)
     typer.echo(f"Built {tag} from {path}")
 
 
@@ -37,7 +41,7 @@ def build(
 def pull(name: str = typer.Argument(..., help="Image reference, e.g. nginx:latest")) -> None:
     """Pull an image from a registry."""
     with docker_errors():
-        run("pull", name)
+        run("pull", "--", name)
     typer.echo(f"OK: pulled {name}")
 
 
@@ -48,7 +52,7 @@ def tag(
 ) -> None:
     """Tag an image with a new reference."""
     with docker_errors():
-        run("tag", source, target)
+        run("tag", "--", source, target)
     typer.echo(f"Tagged {source} as {target}")
 
 
@@ -58,7 +62,7 @@ def push(
 ) -> None:
     """Push an image to a registry."""
     with docker_errors():
-        run("push", name)
+        run("push", "--", name)
     typer.echo(f"OK: pushed {name}")
 
 
@@ -71,7 +75,7 @@ def remove(
     args = ["rmi"]
     if force:
         args.append("--force")
-    args.append(image_id)
+    args += ["--", image_id]
     with docker_errors():
         run(*args)
     typer.echo(f"Removed image {image_id}")
