@@ -48,6 +48,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  CI only ran `containers ls` from the dockerctl image, so the -- separator, positional commands and the compose group were never exercised against a real engine.
+Action: stack-test now runs containers inspect --json compose-nginx-1 (asserting name and health) and containers logs --tail 1 compose-counter-1 through the image, asserts dockerctl compose ps fails inside the image (no compose plugin, D13), and runs dockerctl compose --profile observability ps --json on the host via uv, requiring nginx, counter and grafana. Local: the inspect and compose ps parsing ran against a live nginx (inspect -> /compose-nginx-1 healthy, compose ps -> ['nginx']). actionlint clean, zizmor No findings.
+Status: DONE
+
 Issue:  #14 dockerctl compose up, down, ps group did not exist (closed as completed without code).
 Action: Implements #14. New cli/dockerctl/compose.py registered as `dockerctl compose`: up [SERVICES] (-d, --wait by default, --wait-timeout 180, --no-wait), down (--volumes), ps (--all, --json); --file defaults to compose/docker-compose.yml with DOCKERCTL_COMPOSE_FILE override; repeatable --profile; services passed after --. The dockerctl image has no compose plugin (D13), so inside the image these exit 1 with docker's unknown command error. Tests first (collection failed), then implemented: 66 passed, coverage 100.00%, mypy and ruff clean. Live from the repo root: compose up --wait-timeout 90 nginx httpd reached healthy and printed Stack is up; ps and ps --json listed both healthy; a missing file via DOCKERCTL_COMPOSE_FILE exited 1 with compose file is invalid; down --volumes printed Stack is down.
 Status: DONE

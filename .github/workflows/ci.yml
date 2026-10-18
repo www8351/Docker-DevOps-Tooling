@@ -309,13 +309,37 @@ jobs:
       # fully-mocked unit suite: the dockerctl image drives the runner's socket.
       # The image runs as non-root (UID 10001), so grant it the socket's group
       # instead of root — hardening stays intact.
+      # Arguments reach docker after `--`, so drive a few commands that take
+      # positionals against the real engine, and confirm the image (which has
+      # no compose plugin) fails cleanly on the compose group.
       - name: Live dockerctl smoke test
         run: |
           docker compose -f compose/docker-compose.yml --profile tools build dockerctl
-          docker run --rm \
-            --group-add "$(stat -c '%g' /var/run/docker.sock)" \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            dockerctl:local containers ls
+          dctl() {
+            docker run --rm \
+              --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              dockerctl:local "$@"
+          }
+          dctl containers ls
+          dctl containers inspect --json compose-nginx-1 \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['Name'] == '/compose-nginx-1'; print('inspect ->', d['Name'], d['State']['Health']['Status'])"
+          dctl containers logs --tail 1 compose-counter-1
+          if dctl compose ps; then
+            echo "compose unexpectedly worked inside the dockerctl image" >&2
+            exit 1
+          fi
+          echo "compose inside the image -> exit 1, as documented"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+
+      - name: dockerctl compose against the live stack (host)
+        run: |
+          uv run --locked --project cli dockerctl compose --profile observability ps --json \
+            | python3 -c "import json,sys; rows=[json.loads(l) for l in sys.stdin if l.strip()]; svc=sorted(r['Service'] for r in rows); print('compose ps ->', svc); sys.exit(0 if {'nginx','counter','grafana'} <= set(svc) else 1)"
 
       - name: Tear down
         if: always()
