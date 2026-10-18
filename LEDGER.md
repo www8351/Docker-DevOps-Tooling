@@ -20,14 +20,10 @@ Issue:  CLI passes positional arguments without a -- separator. containers deplo
 Action: Phase 3.3 and 3.4 (D12).
 Status: OPEN
 
-Issue:  release.yml publishes and signs without lint, tests or Trivy, and tags latest on every v* tag including prereleases. Trivy scans only the amd64 build; the published multi-arch images are never scanned.
-Action: Phase 2.10 and 2.11 (D11).
-Status: OPEN
-
 ### CI and reproducibility
 
-Issue:  No CodeQL, no SARIF upload. publish job and release.yml duplicate build and sign logic.
-Action: Phase 2.9 and 2.10.
+Issue:  publish job and release.yml duplicate build and sign logic; release.yml has no gates and tags latest on prereleases; Trivy scans only the amd64 build, not the published multi-arch images.
+Action: Phase 2.10 and 2.11 (D11).
 Status: OPEN
 
 ### Code quality
@@ -67,6 +63,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  No code scanning: no CodeQL and Trivy results only in job logs.
+Action: New codeql.yml (python and actions, build-mode none, codeql-action v4.39.0 commit 6f2ac81f) on pushes to main, pull requests, weekly and on dispatch. The image job uploads a Trivy SARIF (MEDIUM and up, never gating) per image with continue-on-error for tokens that cannot write alerts; job gains security-events write. Repository is public, so code scanning needs no extra licence. Local: actionlint clean, zizmor No findings.
+Status: DONE
 
 Issue:  Workflows had no static analysis; zizmor flagged softprops/action-gh-release as superfluous (gh ships on the runner).
 Action: New workflow-lint job: actionlint from rhysd/actionlint:1.7.12 pinned by digest b1934ee5 (bundles shellcheck), then zizmor 1.31.1 with online audits using the read-only job token. Release notes now come from gh release create --verify-tag --generate-notes with the notes passed through an env var. Local: actionlint v1.7.7 and the 1.7.12 image clean, zizmor offline No findings (15 suppressed by the regular persona).

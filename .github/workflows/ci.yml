@@ -137,6 +137,9 @@ jobs:
   image:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # Trivy results to code scanning
     strategy:
       fail-fast: false
       matrix:
@@ -177,6 +180,26 @@ jobs:
           # base-image CVEs (no fix upstream yet) are ignored so CI stays green.
           ignore-unfixed: true
           exit-code: "1"
+
+      # Same scan as SARIF, so findings (including unfixed ones the gate
+      # ignores) show up in code scanning. Never gates the build, and the
+      # upload is allowed to fail where the token cannot write alerts
+      # (Dependabot and fork PRs).
+      - name: Scan ${{ matrix.name }} image for code scanning (Trivy, SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.name }}:ci
+          severity: MEDIUM,HIGH,CRITICAL
+          format: sarif
+          output: trivy-${{ matrix.name }}.sarif
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF for ${{ matrix.name }}
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        continue-on-error: true
+        with:
+          sarif_file: trivy-${{ matrix.name }}.sarif
+          category: trivy-${{ matrix.name }}
 
       - name: Generate SBOM for ${{ matrix.name }} (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
