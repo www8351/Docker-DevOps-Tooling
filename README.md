@@ -340,7 +340,8 @@ plain `docker run -d`.
 
 **`compose` runs on the host**: it wraps `docker compose -f compose/docker-compose.yml`
 (relative to where you run it; set `--file` or `DOCKERCTL_COMPOSE_FILE` otherwise) and needs the
-Docker Compose plugin, which the `dockerctl` image does not ship.
+Docker Compose plugin, which the `dockerctl` image does not ship. Unlike `docker compose`,
+`--file` and `--profile` go after the subcommand: `dockerctl compose ps --profile observability`.
 
 <details>
 <summary><b>Full command reference</b> (3 groups, 19 commands)</summary>

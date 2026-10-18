@@ -338,7 +338,7 @@ jobs:
 
       - name: dockerctl compose against the live stack (host)
         run: |
-          uv run --locked --project cli dockerctl compose --profile observability ps --json \
+          uv run --locked --project cli dockerctl compose ps --profile observability --json \
             | python3 -c "import json,sys; rows=[json.loads(l) for l in sys.stdin if l.strip()]; svc=sorted(r['Service'] for r in rows); print('compose ps ->', svc); sys.exit(0 if {'nginx','counter','grafana'} <= set(svc) else 1)"
 
       - name: Tear down

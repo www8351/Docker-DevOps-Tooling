@@ -48,6 +48,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  stack-test failed on 84e6e30: the new host step ran `dockerctl compose --profile observability ps`, but --profile is an option of each subcommand, so Typer answered No such option: --profile and the service check saw no rows.
+Action: Reproduced locally (same error, exit 2). The step now runs `dockerctl compose ps --profile observability --json`; locally it lists the running services. README notes that --file and --profile follow the subcommand, unlike docker compose.
+Status: DONE
+
 Issue:  README still showed two command groups, a deploy example that cannot run hardened (nginx:latest needs capabilities), and task cli ran from cli/ where the compose default path does not resolve.
 Action: README documents the -- guarantee, the hardened deploy defaults and escape hatches, the compose group (host only, file resolution), and the full reference (3 groups, 19 commands); the deploy example uses nginx-unprivileged. task cli runs from the repo root via uv run --project cli. CHANGELOG Unreleased gains the separator under Security, the compose group and deploy flags under Added, and the hardened deploy as breaking. Local: task cli -- --version 0.2.1, task cli -- compose --help lists up, down, ps.
 Status: DONE
