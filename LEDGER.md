@@ -52,6 +52,10 @@ Status: DONE
 
 ### 2026-10-18
 
+Issue:  CONTRIBUTING, SECURITY and the PR template do not cover the chart, the ADRs or the release guard (Phase 5.4).
+Action: CONTRIBUTING: chart:lint and kind:test in the gates table, chart conventions (restricted profile, images and httpd.conf in step with compose, bump the chart version), the ADR rule, and release steps naming pyproject version, task lock, chart appVersion, changelog section and compare link. SECURITY: the chart is in scope, a posture bullet for the chart and its CI proof, and a pointer to the ADRs. PR template: chart and ADR checklist items. Em dashes removed. The release guard on the chart appVersion that CONTRIBUTING now describes lands in Phase 5.5.
+Status: DONE
+
 Issue:  README predates the roadmap in places (layout tree, task list, test count) and its Hebrew part was a short intro that mixed English words into Hebrew sentences (Phase 5.3).
 Action: README: tagline names the Helm chart; demo GIF embedded; highlights updated (75 tests, the chart on kind under restricted, the ADRs); architecture diagram and layer table gain the chart; layout tree rewritten from the actual tree (compose subfolders, deploy/chart, cli modules and tests, scripts, docs/adr, workflows); task list matches every Taskfile task; design principles and links gain the ADRs; every em dash removed. A full Hebrew section now follows the English one and mirrors every section, with tables and the full command reference pointed to the English part; English terms in it sit in backticks only, and the top intro links to it. Local: no em or en dashes; no mention of LEDGER, CLAUDE or AI; every relative link resolves; a scan of Hebrew lines finds no Latin word outside backticks or link targets except the bilingual "What is this? · מה זה?" heading.
 Status: DONE

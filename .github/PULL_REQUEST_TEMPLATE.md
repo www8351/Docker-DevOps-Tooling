@@ -9,3 +9,5 @@
 - [ ] `CHANGELOG.md` updated under `[Unreleased]` (skip for docs-only changes)
 - [ ] Docs touched if behavior changed (README / CONTRIBUTING / SECURITY)
 - [ ] New images/services follow the hardening baseline (read-only, `cap_drop: ALL`, non-root, pinned tags)
+- [ ] Chart changes: `task chart:lint` passes, `Chart.yaml` version bumped, and nginx/httpd still match compose
+- [ ] A significant trade-off made or reversed has an ADR in `docs/adr/`
