@@ -87,6 +87,12 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
+      # The image job is the first place the built venv meets its runtime
+      # interpreter; prove the entrypoint actually imports before scanning.
+      - name: Smoke-run the dockerctl image
+        if: matrix.name == 'dockerctl'
+        run: docker run --rm dockerctl:ci version
+
       - name: Scan ${{ matrix.name }} image (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
