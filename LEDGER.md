@@ -8,10 +8,10 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 2, CI and supply chain
+### Next action: Phase 3, CLI correctness and compose group
 
-Issue:  Phase 2 of the 0.3.0 roadmap (Track B) is complete on branch ccr-1ddb6a39-8xlw9d as draft PR #72.
-Action: Drive CI green on the final head, then stop for owner merge. Phase 3 (CLI correctness, compose group #14) follows.
+Issue:  Phase 3 of the 0.3.0 roadmap (Track A code plus #14) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 4d99cfc.
+Action: Ship commits 3.1 to 3.7, open a draft PR, drive CI green, stop for owner merge.
 Status: IN PROGRESS
 
 ### Security and correctness
@@ -59,6 +59,14 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Test helpers (_record_calls and boom) were copied into test_containers.py and test_images.py with no conftest.py.
+Action: cli/tests/conftest.py provides runner, record_calls(module, returns) and docker_fails(module, message) fixtures with RecordCalls and DockerFails type aliases; both test modules use them with full annotations. Local: ruff clean, mypy Success no issues in 11 source files, 45 passed, coverage 100.00%.
+Status: DONE
+
+Issue:  Phase 2 PR #72.
+Action: Owner merged PR #72 into main as 4d99cfc (head af32474, all 15 checks green). Branch ccr-1ddb6a39-8xlw9d restarted from main.
+Status: DONE
 
 Issue:  Adversarial review of the phase 2 diff: the dry-run registry service also ran (and was pulled from Docker Hub) for real publishes; major.minor relied on metadata-action alone to skip prereleases; gh release create failed on a re-run once the release existed; main publish did not wait for workflow-lint while releases did; comments overstated main concurrency and test gating; docs still said CI runs on every push.
 Action: Registry now starts in a step gated on dry-run (bound to 127.0.0.1:5000); major.minor explicitly disabled for tags containing a dash; github-release skips when the release exists; publish needs workflow-lint; ci.yml comments state that main runs queue one at a time with a newer merge replacing a waiting one (grouping by sha was rejected because two publishes could race on latest); README and SECURITY.md say pull requests instead of every push. self-repository is a valid zizmor id (zizmor reports 4 ignored). actionlint clean, zizmor No findings.
