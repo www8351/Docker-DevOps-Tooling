@@ -26,8 +26,8 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  No lockfile. Dependencies have lower bounds only. The Dockerfile resolves latest at build time. CI installs ruff unpinned.
-Action: Phase 2.3 and 2.5. uv.lock with hashes (D7).
+Issue:  The Dockerfile still resolves dependencies at build time and CI installs ruff unpinned, ignoring cli/uv.lock.
+Action: Phase 2.5 (image from the lock) and 2.6 (CI from the lock).
 Status: OPEN
 
 Issue:  Pre-commit revisions drift from CI (ruff v0.8.0, mypy v2.1.0, hadolint beta tag).
@@ -78,15 +78,15 @@ Status: OPEN
 
 ### Open Dependabot PRs
 
-Issue:  #41 setuptools, #61 mypy, #63 typer, #64 ruff floor bumps.
-Action: Absorbed in Phase 2.3. Owner closes those Dependabot does not auto close.
-Status: OPEN
-
 ---
 
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  No lockfile; lower bound only dependencies; requires-python >=3.10 with 3.10 reaching end of life; Dependabot floor bumps #41, #61, #63, #64 open.
+Action: cli/uv.lock generated with uv 0.11.32 (23 packages, 434 sha256 hashes). Floors raised: typer>=0.27.3, mypy>=2.4.0, ruff>=0.17.0, setuptools>=84.0.0; requires-python >=3.11, ruff py311, mypy 3.11. Locked: ruff 0.17.1, mypy 2.4.0, typer 0.27.3. No code changes needed for the new linters. Local: uv lock --check resolved, ruff and format clean, mypy Success no issues in 10 files, pytest 45 passed on 3.11, 3.12, 3.13 and 3.14, coverage 100.00%.
+Status: DONE
 
 Issue:  Dependabot action bumps #49, #50, #56, #57, #58 open since August and September.
 Action: Applied the exact SHAs from each Dependabot branch: hadolint-action v3.5.0, action-gh-release v3.0.3, setup-buildx-action v4.4.1, build-push-action v7.4.0, setup-qemu-action v4.4.0. Dependabot closes those PRs once main carries the versions.

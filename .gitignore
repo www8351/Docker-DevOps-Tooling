@@ -9,6 +9,7 @@ compose/secrets/
 
 # Python
 __pycache__/
+.venv/
 *.egg-info/
 .ruff_cache/
 .pytest_cache/
