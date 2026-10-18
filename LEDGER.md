@@ -52,6 +52,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  No local entry points for the chart (Phase 4.4).
+Action: Taskfile gains chart:lint (helm lint --strict), chart:template, and kind:test, which mirrors the CI helm job on a throwaway cluster (create, build and kind load counter:local, restricted namespace, helm install --wait, helm test --logs, deferred cluster delete). Local: task --list shows all three; task chart:lint 1 chart(s) linted, 0 chart(s) failed; task chart:template renders 11 objects; task --dry kind:test prints the expected command sequence. kind:test itself cannot run in this container (see the tooling entry).
+Status: DONE
+
 Issue:  The chart needs a real cluster check under the restricted Pod Security Standard (Phase 4.2).
 Action: New CI job helm: azure/setup-helm v5.0.1 (9bc31f4e) with helm v4.3.1; asserts compose/httpd/httpd.conf equals deploy/chart/files/httpd.conf and that the rendered nginx and httpd images equal the compose ones (D14); helm lint --strict; helm/kind-action v1.15.1 (1544676c, kind v0.33.0, kindnetd enforces NetworkPolicy); builds counter and kind loads it; creates namespace stack labelled enforce=restricted and first proves enforcement (a bare pod is refused with violates PodSecurity "restricted"); helm install --wait with the local counter and tests.checkNetworkPolicy=true; rollout status for all three Deployments; helm test --logs; diagnostics on failure. publish now also needs helm. Local: actionlint clean, zizmor no findings; the sync step printed both images and exited 0, and exited 1 after changing the nginx tag in values.yaml or appending to the chart httpd.conf. kind itself runs in CI only.
 Status: DONE
