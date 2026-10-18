@@ -52,6 +52,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  README and CHANGELOG do not describe the chart (Phase 4.5).
+Action: README gains a Kubernetes (Helm chart) section (hardening, shared httpd.conf and images, NetworkPolicy, install and helm test commands, local counter override, chart tasks), a helm job paragraph under CI, deploy/chart and compose/httpd in the layout, a Helm, kind and kubectl requirement row, and the chart tasks in the task list; CHANGELOG Unreleased gains the chart and the helm job under Added. Local: helm v3.22.1 lint --strict passes and, at --kube-version 1.37.0, renders the same objects as helm v4.3.1 apart from blank lines (kubeconform Valid: 11); the README states Helm 3 or 4 on that basis.
+Status: DONE
+
 Issue:  No local entry points for the chart (Phase 4.4).
 Action: Taskfile gains chart:lint (helm lint --strict), chart:template, and kind:test, which mirrors the CI helm job on a throwaway cluster (create, build and kind load counter:local, restricted namespace, helm install --wait, helm test --logs, deferred cluster delete). Local: task --list shows all three; task chart:lint 1 chart(s) linted, 0 chart(s) failed; task chart:template renders 11 objects; task --dry kind:test prints the expected command sequence. kind:test itself cannot run in this container (see the tooling entry).
 Status: DONE

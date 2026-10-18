@@ -120,7 +120,9 @@ flowchart TD
 .
 ├── compose/
 │   ├── docker-compose.yml   # declarative stack (nginx, httpd, portainer, counter)
+│   ├── httpd/httpd.conf     # unprivileged httpd config, shared with the chart
 │   └── .env.example         # bind addresses + ports  →  copy to .env
+├── deploy/chart/            # Helm chart for the web tier (restricted PSS)
 ├── images/
 │   └── counter/             # custom image, built by compose
 │       ├── Dockerfile       # multi-stage, hardened, Alpine, non-root
@@ -150,6 +152,7 @@ flowchart TD
 | Python ≥ 3.11 | run `dockerctl` | <https://www.python.org/> |
 | uv (recommended) | locked dev environment, pre-commit hooks | <https://docs.astral.sh/uv/> |
 | Task (optional) | task runner | <https://taskfile.dev/installation/> |
+| Helm 3 or 4, kind, kubectl (optional) | install and test the Kubernetes chart | <https://helm.sh/docs/intro/install/> |
 
 > Without Task installed, every command has a raw `docker compose` equivalent shown below.
 
@@ -232,6 +235,42 @@ task pull     # docker compose pull
 task logs     # docker compose logs -f
 task clean    # down + remove volumes
 ```
+
+---
+
+## ☸️ Kubernetes (Helm chart)
+
+[`deploy/chart`](deploy/chart) runs the web tier, nginx, httpd and counter, on Kubernetes with
+the same hardening as compose. Every pod runs as its image's fixed non-root user (nginx 101,
+httpd 82, counter 10001) with the `RuntimeDefault` seccomp profile, a read-only root filesystem,
+`allowPrivilegeEscalation: false`, every capability dropped and a small in-memory `/tmp` as the
+only writable path, so a namespace can enforce the **restricted Pod Security Standard**. httpd
+mounts the same [`httpd.conf`](compose/httpd/httpd.conf) compose uses, and nginx and httpd run the
+same tag and digest as compose; CI fails if either drifts.
+
+The service account mounts no API token, and NetworkPolicies deny all traffic to and from the
+release except HTTP on port 8080 into nginx and httpd. `helm test` fetches both services through
+their Services.
+
+```bash
+kubectl create namespace stack
+kubectl label namespace stack pod-security.kubernetes.io/enforce=restricted
+helm install devops-stack deploy/chart -n stack --wait
+helm test devops-stack -n stack --logs
+kubectl -n stack port-forward svc/devops-stack-nginx 8080:8080
+```
+
+The counter image defaults to `ghcr.io/www8351/docker-devops-tooling/counter` at the chart's
+`appVersion`. To run a local build instead, load it into the cluster and point the chart at it:
+`--set counter.image.repository=counter,counter.image.tag=local,counter.image.pullPolicy=Never`.
+[`values.yaml`](deploy/chart/values.yaml) documents every setting, and
+[`values.schema.json`](deploy/chart/values.schema.json) rejects unknown keys and a root UID.
+
+| Task | What it does |
+|------|--------------|
+| `task chart:lint` | `helm lint --strict` against the values schema |
+| `task chart:template` | render the chart with its defaults |
+| `task kind:test` | the CI `helm` job on a throwaway kind cluster: restricted namespace, install, `helm test` |
 
 ---
 
@@ -392,6 +431,8 @@ task logs       # tail logs
 task clean      # down + volumes
 task lint       # run every linter locally
 task cli -- compose ps                 # proxy to dockerctl (runs from the repo root)
+task chart:lint                        # helm lint --strict
+task kind:test                         # chart on a local kind cluster, then helm test
 ```
 
 ---
@@ -430,6 +471,13 @@ impostor action commits.
   and `admin:admin` does not, waits for every Prometheus target and for cAdvisor's
   per-container series, then runs the built `dockerctl` image against the runner's live
   Docker socket
+
+**`helm` job**
+- fails if the chart's nginx and httpd images or its `httpd.conf` differ from compose
+- `helm lint --strict`, then a **kind** cluster: a namespace labelled to enforce the
+  **restricted Pod Security Standard** (first proven by refusing a bare pod), `helm install --wait`
+  with a locally built counter, every Deployment rolled out, and `helm test`, which also requires
+  the Kubernetes API to be unreachable from the test pod, proving the NetworkPolicy is enforced
 
 **`publish` job** (pushes to `main` only) calls the shared
 [`_publish.yml`](.github/workflows/_publish.yml), which never tags anything it has not checked:

@@ -63,6 +63,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--user`, `--memory`, `--pids-limit`, `--no-harden`. `--no-harden` refuses
   the hardening options with a usage error instead of ignoring them.
 - CI drives `inspect`, `logs` and `compose ps` against the live stack.
+- **Helm chart** `deploy/chart` (#12) for nginx, httpd and counter: non-root
+  with fixed UIDs, seccomp `RuntimeDefault`, read-only root filesystems, no
+  capabilities, no service account token, default-deny NetworkPolicies and a
+  `helm test` pod, admitted under the restricted Pod Security Standard.
+  Taskfile `chart:lint`, `chart:template` and `kind:test`.
+- CI `helm` job: installs the chart on kind in a namespace enforcing the
+  restricted profile and runs `helm test`; it also fails when the chart's
+  images or `httpd.conf` drift from compose.
 
 ### Changed
 
