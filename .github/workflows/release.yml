@@ -87,15 +87,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
+      # gh ships on the runner, so no third-party release action is needed.
+      # --notes is prepended to the generated notes.
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          generate_release_notes: true
-          body: |
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          NOTES: |
             Container images:
             `ghcr.io/www8351/docker-devops-tooling/counter` and
             `ghcr.io/www8351/docker-devops-tooling/dockerctl`
@@ -103,3 +101,6 @@ jobs:
 
             See [CHANGELOG.md](https://github.com/www8351/Docker-DevOps-Tooling/blob/main/CHANGELOG.md)
             for the curated list of changes.
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --generate-notes --notes "$NOTES"

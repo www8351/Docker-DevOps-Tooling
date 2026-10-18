@@ -86,6 +86,32 @@ jobs:
         working-directory: cli
         run: uv run --locked pytest
 
+  # Static analysis of the workflows themselves: actionlint (with shellcheck
+  # on every run: block) and zizmor's security audits, including the online
+  # ones (known-vulnerable or impostor action commits) with a read-only token.
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: actionlint
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" --workdir /repo \
+            rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+
+      - name: zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uvx zizmor@1.31.1 --format github .github/
+
   # The rest of the supported range. Not a required check; lint covers 3.11.
   test:
     runs-on: ubuntu-latest

@@ -26,8 +26,8 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  No workflow linting (actionlint, zizmor), no CodeQL, no SARIF upload. publish job and release.yml duplicate build and sign logic.
-Action: Phase 2.8, 2.9, 2.10.
+Issue:  No CodeQL, no SARIF upload. publish job and release.yml duplicate build and sign logic.
+Action: Phase 2.9 and 2.10.
 Status: OPEN
 
 ### Code quality
@@ -67,6 +67,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Workflows had no static analysis; zizmor flagged softprops/action-gh-release as superfluous (gh ships on the runner).
+Action: New workflow-lint job: actionlint from rhysd/actionlint:1.7.12 pinned by digest b1934ee5 (bundles shellcheck), then zizmor 1.31.1 with online audits using the read-only job token. Release notes now come from gh release create --verify-tag --generate-notes with the notes passed through an env var. Local: actionlint v1.7.7 and the 1.7.12 image clean, zizmor offline No findings (15 suppressed by the regular persona).
+Status: DONE
 
 Issue:  Dependabot tracked pip (now replaced by uv.lock), opened one PR per action, watched each Dockerfile through a separate entry, and had no release cooldown (zizmor dependabot-cooldown, 5 findings).
 Action: Dependabot ecosystems: github-actions (grouped into one PR), uv for /cli (minor and patch grouped), docker with directories /cli and /images/counter (also tracks the pinned uv stage), docker-compose for /compose; every ecosystem waits 7 days (cooldown default-days 7). Local: check-jsonschema vendor.dependabot ok, zizmor No findings.
