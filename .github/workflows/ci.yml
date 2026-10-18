@@ -352,8 +352,95 @@ jobs:
         if: always()
         run: docker compose -f compose/docker-compose.yml --profile observability down -v
 
+  # The Helm chart on a real cluster. The chart's web images and httpd.conf
+  # must match compose; then it installs into a kind namespace that enforces
+  # the restricted Pod Security Standard, every Deployment must roll out, and
+  # helm test fetches both web services and proves the NetworkPolicy blocks
+  # everything else. counter is built here and loaded into the node.
+  helm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NS: stack
+      RELEASE: ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+
+      - name: Assert the chart and compose run the same images and httpd.conf
+        run: |
+          diff -q compose/httpd/httpd.conf deploy/chart/files/httpd.conf
+          rendered=$(helm template "$RELEASE" deploy/chart)
+          services=$(docker compose -f compose/docker-compose.yml config --format json)
+          for svc in nginx httpd; do
+            want=$(jq -r ".services.$svc.image" <<<"$services")
+            if ! grep -qF "image: \"$want\"" <<<"$rendered"; then
+              echo "chart $svc image differs from compose: $want" >&2
+              exit 1
+            fi
+            echo "$svc -> $want"
+          done
+
+      - name: Lint the chart
+        run: helm lint --strict deploy/chart
+
+      - name: Create kind cluster
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        with:
+          cluster_name: chart-testing
+
+      - name: Build counter and load it into the node
+        run: |
+          docker build -t counter:ci images/counter
+          kind load docker-image counter:ci --name chart-testing
+
+      # The namespace must really enforce the profile, or admitting the chart
+      # proves nothing: a pod without a security context is refused first.
+      - name: Create a namespace that enforces the restricted profile
+        run: |
+          kubectl create namespace "$NS"
+          kubectl label namespace "$NS" \
+            pod-security.kubernetes.io/enforce=restricted \
+            pod-security.kubernetes.io/enforce-version=latest
+          rc=0
+          out=$(kubectl -n "$NS" run pss-probe --image=busybox --restart=Never --dry-run=server 2>&1) || rc=$?
+          echo "$out"
+          if [ "$rc" -eq 0 ] || ! grep -q 'violates PodSecurity "restricted' <<<"$out"; then
+            echo "namespace $NS does not enforce the restricted profile" >&2
+            exit 1
+          fi
+
+      - name: Install the chart
+        run: |
+          helm install "$RELEASE" deploy/chart -n "$NS" --wait --timeout 5m \
+            --set counter.image.repository=counter \
+            --set counter.image.tag=ci \
+            --set counter.image.pullPolicy=Never \
+            --set tests.checkNetworkPolicy=true
+          for component in nginx httpd counter; do
+            kubectl -n "$NS" rollout status "deploy/$RELEASE-devops-stack-$component" --timeout 120s
+          done
+          kubectl -n "$NS" get pods -o wide
+
+      - name: helm test
+        run: helm test "$RELEASE" -n "$NS" --logs
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl get events -A --sort-by=.lastTimestamp | tail -40 || true
+          kubectl -n "$NS" describe pods || true
+          kubectl -n "$NS" logs --all-containers --prefix --tail 50 \
+            -l "app.kubernetes.io/instance=$RELEASE" || true
+
   publish:
-    needs: [lint, test, workflow-lint, image, stack-test]
+    needs: [lint, test, workflow-lint, image, stack-test, helm]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
