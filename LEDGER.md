@@ -22,10 +22,6 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  publish job and release.yml duplicate build and sign logic; release.yml has no gates and tags latest on prereleases; Trivy scans only the amd64 build, not the published multi-arch images.
-Action: Phase 2.10 and 2.11 (D11).
-Status: OPEN
-
 ### Code quality
 
 Issue:  The same try, DockerError, echo, Exit(1) block is copied 16 times across containers.py and images.py. Test helpers are duplicated with no conftest.py.
@@ -63,6 +59,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  release.yml pushed and signed on any v* tag without lint, tests or a scan, tagged latest on prereleases, and only compared the tag string to pyproject.toml.
+Action: release.yml now runs guard (packaging normalised tag vs cli/pyproject.toml, stable tags need a CHANGELOG section), then the whole ci.yml via workflow_call with the union of nested permissions, then _publish.yml in release mode, then gh release create with --prerelease for tags containing a dash. Local guard runs: v0.2.1 matches 0.2.1; v0.3.0, v0.2.1-rc.1, v0.2.2 rejected; v0.3.0-rc.1 matches 0.3.0rc1 without a changelog section; stable v0.3.0 rejected without its section and accepted with it. actionlint clean, zizmor No findings. The tag path itself only runs on a real tag; an owner pushed v0.3.0-rc.1 after Phase 4 would exercise it without moving latest.
+Status: DONE
 
 Issue:  The main publish built and tagged multi-arch images in one step, so latest moved before anything scanned the pushed bytes; only the amd64 CI build was ever scanned; release.yml duplicated the logic.
 Action: New reusable _publish.yml (modes main, release, dry-run): push by digest only, Trivy on the pushed digest for linux/amd64 and linux/arm64, cosign sign the digest, then docker buildx imagetools create the tags and fail unless every tag resolves to the scanned digest. latest=auto keeps latest off prereleases. No build cache in publish. ci.yml publish calls it with mode main; a new publish-dry-run job runs it on every pull request against a registry:3.1.1 service container without signing. Local: imagetools retag preserved index digest 294b683c including attestation manifests; tag step exit 0 when tags match, exit 1 on a digest mismatch; actionlint clean; zizmor No findings (2 self-repository ignored with reason: ./ already pins the callee to this commit and actionlint does not parse $/ yet).
