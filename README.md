@@ -313,8 +313,10 @@ Both images are built and scanned by **Trivy** on every pull request and merge (
 ## 🐍 The CLI (dockerctl)
 
 A small **non-interactive** CLI for the dynamic operations compose shouldn't own
-(ad-hoc pulls, removals, one-off deploys). Flags only no prompts so it is safe in CI.
-Every command returns a meaningful **exit code** and writes errors to stderr.
+(ad-hoc pulls, removals, one-off deploys) plus the stack's lifecycle. Flags only, no prompts,
+so it is safe in CI. Every command returns a meaningful **exit code** and writes errors to
+stderr, and every value you pass reaches docker after a `--`, so a name starting with a dash
+is never read as a docker flag.
 
 ```bash
 cd cli && uv sync --locked    # locked environment with the `dockerctl` command (uv run dockerctl …)
@@ -322,14 +324,26 @@ pip install -e cli            # or: plain pip, resolving unpinned versions
 ```
 
 ```bash
-dockerctl containers deploy nginx:latest -n web -p 8080:80
+dockerctl compose up --profile observability   # start the stack and wait until it is healthy
+dockerctl containers deploy nginxinc/nginx-unprivileged:1.30.6-alpine3.24 -n web -p 8080:8080
 dockerctl containers stats --json
 dockerctl images push ghcr.io/acme/counter:1.0
 dockerctl --version           # or -V, or the `version` subcommand
 ```
 
+**`containers deploy` is hardened by default**: `no-new-privileges`, every capability dropped,
+a read-only root filesystem with `/tmp` on tmpfs, `--pids-limit 256`, `--memory 256m`, and the
+port published on `127.0.0.1` unless the mapping names an address (`0.0.0.0:8080:80`). Images
+that need more ask for it: `--cap-add NET_BIND_SERVICE`, `--tmpfs /var/cache/nginx`,
+`--writable`, `--user 101:101`, `--memory 512m`, `--pids-limit 1024`. `--no-harden` gives a
+plain `docker run -d`.
+
+**`compose` runs on the host**: it wraps `docker compose -f compose/docker-compose.yml`
+(relative to where you run it; set `--file` or `DOCKERCTL_COMPOSE_FILE` otherwise) and needs the
+Docker Compose plugin, which the `dockerctl` image does not ship.
+
 <details>
-<summary><b>Full command reference</b> (2 groups, 14 commands)</summary>
+<summary><b>Full command reference</b> (3 groups, 19 commands)</summary>
 
 | Command | Replaces | Example |
 |---------|----------|---------|
@@ -341,9 +355,12 @@ dockerctl --version           # or -V, or the `version` subcommand
 | `images push <ref>` | — | `dockerctl images push ghcr.io/acme/counter:1.0` |
 | `containers ls [-a] [--json]` | menu listing | `dockerctl containers ls --all` |
 | `containers rm <id> [-f]` | `remove_Container.sh` | `dockerctl containers rm web --force` |
-| `containers deploy <img>` | deploy menus | `dockerctl containers deploy nginx:latest -n web -p 8080:80` |
+| `containers deploy <img>` | deploy menus | `dockerctl containers deploy nginxinc/nginx-unprivileged:1.30.6-alpine3.24 -n web -p 8080:8080` |
 | `containers logs / stop / start / restart` | menu ops | `dockerctl containers restart -t 5 web` |
 | `containers exec / inspect / stats` | menu ops | `dockerctl containers stats --json` |
+| `compose up [services] [--profile p] [--no-wait]` | `docker compose up -d --wait` | `dockerctl compose up --profile observability` |
+| `compose down [-v]` | `docker compose down` | `dockerctl compose down --volumes` |
+| `compose ps [-a] [--json]` | `docker compose ps` | `dockerctl compose ps --json` |
 
 `dockerctl --help` prints the full command tree; each group has its own `--help`.
 
@@ -370,7 +387,7 @@ task pull       # pull images
 task logs       # tail logs
 task clean      # down + volumes
 task lint       # run every linter locally
-task cli -- images pull nginx:latest   # proxy to dockerctl
+task cli -- compose ps                 # proxy to dockerctl (runs from the repo root)
 ```
 
 ---

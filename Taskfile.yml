@@ -117,8 +117,8 @@ tasks:
           {{.TRIVY_IMAGE}} image --format cyclonedx
           --output "/out/{{.ITEM | replace ":" "-"}}.cdx.json" {{.ITEM}}
 
+  # Runs from the repo root so `dockerctl compose` finds compose/docker-compose.yml.
   cli:
-    desc: 'Run the dockerctl CLI, e.g. `task cli -- images pull nginx:latest`'
-    dir: cli
+    desc: 'Run the dockerctl CLI, e.g. `task cli -- compose ps`'
     cmds:
-      - uv run --locked dockerctl {{.CLI_ARGS}}
+      - uv run --locked --project cli dockerctl {{.CLI_ARGS}}

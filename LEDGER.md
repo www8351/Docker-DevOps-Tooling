@@ -48,6 +48,14 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  README still showed two command groups, a deploy example that cannot run hardened (nginx:latest needs capabilities), and task cli ran from cli/ where the compose default path does not resolve.
+Action: README documents the -- guarantee, the hardened deploy defaults and escape hatches, the compose group (host only, file resolution), and the full reference (3 groups, 19 commands); the deploy example uses nginx-unprivileged. task cli runs from the repo root via uv run --project cli. CHANGELOG Unreleased gains the separator under Security, the compose group and deploy flags under Added, and the hardened deploy as breaking. Local: task cli -- --version 0.2.1, task cli -- compose --help lists up, down, ps.
+Status: DONE
+
+Issue:  First publish on main through the shared _publish.yml after merging #72.
+Action: CI run 39156291406 on 4d99cfc: publish (counter) and publish (dockerctl) both pushed by digest, passed Trivy on linux/amd64 and linux/arm64, signed with cosign and tagged with every tag verified against the signed digest. All other jobs green.
+Status: DONE
+
 Issue:  CI only ran `containers ls` from the dockerctl image, so the -- separator, positional commands and the compose group were never exercised against a real engine.
 Action: stack-test now runs containers inspect --json compose-nginx-1 (asserting name and health) and containers logs --tail 1 compose-counter-1 through the image, asserts dockerctl compose ps fails inside the image (no compose plugin, D13), and runs dockerctl compose --profile observability ps --json on the host via uv, requiring nginx, counter and grafana. Local: the inspect and compose ps parsing ran against a live nginx (inspect -> /compose-nginx-1 healthy, compose ps -> ['nginx']). actionlint clean, zizmor No findings.
 Status: DONE
