@@ -86,10 +86,3 @@ serviceAccount:
 # and to cluster DNS). Needs a CNI that enforces NetworkPolicy.
 networkPolicy:
   enabled: true
-
-# `helm test` runs one pod that fetches both web services.
-tests:
-  # Also assert that the test pod cannot reach the Kubernetes API, which
-  # proves the NetworkPolicy is enforced. Leave off on a CNI without
-  # NetworkPolicy support.
-  checkNetworkPolicy: false

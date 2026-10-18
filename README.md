@@ -476,8 +476,9 @@ impostor action commits.
 - fails if the chart's nginx and httpd images or its `httpd.conf` differ from compose
 - `helm lint --strict`, then a **kind** cluster: a namespace labelled to enforce the
   **restricted Pod Security Standard** (first proven by refusing a bare pod), `helm install --wait`
-  with a locally built counter, every Deployment rolled out, and `helm test`, which also requires
-  the Kubernetes API to be unreachable from the test pod, proving the NetworkPolicy is enforced
+  with a locally built counter, every Deployment rolled out, `helm test`, and a check that the
+  **NetworkPolicy is enforced**: nginx, which may open no connection, must fail to reach the httpd
+  pod that the test pod just reached
 
 **`publish` job** (pushes to `main` only) calls the shared
 [`_publish.yml`](.github/workflows/_publish.yml), which never tags anything it has not checked:

@@ -354,9 +354,9 @@ jobs:
 
   # The Helm chart on a real cluster. The chart's web images and httpd.conf
   # must match compose; then it installs into a kind namespace that enforces
-  # the restricted Pod Security Standard, every Deployment must roll out, and
-  # helm test fetches both web services and proves the NetworkPolicy blocks
-  # everything else. counter is built here and loaded into the node.
+  # the restricted Pod Security Standard, every Deployment must roll out,
+  # helm test fetches both web services, and the NetworkPolicy must block
+  # what it does not allow. counter is built here and loaded into the node.
   helm:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -421,8 +421,7 @@ jobs:
           helm install "$RELEASE" deploy/chart -n "$NS" --wait --timeout 5m \
             --set counter.image.repository=counter \
             --set counter.image.tag=ci \
-            --set counter.image.pullPolicy=Never \
-            --set tests.checkNetworkPolicy=true
+            --set counter.image.pullPolicy=Never
           for component in nginx httpd counter; do
             kubectl -n "$NS" rollout status "deploy/$RELEASE-devops-stack-$component" --timeout 120s
           done
@@ -430,6 +429,28 @@ jobs:
 
       - name: helm test
         run: helm test "$RELEASE" -n "$NS" --logs
+
+      # helm test just reached httpd from the test pod, which its policy
+      # allows. nginx may open no connection at all, so the same request from
+      # nginx straight to the httpd pod must fail at the network (dropped or
+      # rejected), while nginx can still fetch its own page, which shows wget
+      # and exec work. Traffic between a pod and its own node is always
+      # allowed, so the target is a pod, not the API server.
+      - name: Assert the NetworkPolicy is enforced
+        run: |
+          nginx="deploy/$RELEASE-devops-stack-nginx"
+          ip=$(kubectl -n "$NS" get pod -l app.kubernetes.io/component=httpd \
+            -o jsonpath='{.items[0].status.podIP}')
+          kubectl -n "$NS" exec "$nginx" -- wget -q -T 5 -O /dev/null http://127.0.0.1:8080/
+          echo "nginx -> itself: 200"
+          rc=0
+          out=$(kubectl -n "$NS" exec "$nginx" -- wget -q -T 5 -O /dev/null "http://$ip:8080/" 2>&1) || rc=$?
+          echo "$out"
+          if [ "$rc" -eq 0 ] || ! grep -Eq "timed out|refused|No route|unreachable" <<<"$out"; then
+            echo "nginx -> httpd $ip:8080 was not blocked (exit $rc)" >&2
+            exit 1
+          fi
+          echo "nginx -> httpd $ip:8080: blocked by NetworkPolicy"
 
       - name: Diagnostics
         if: failure()

@@ -84,14 +84,6 @@
       "properties": {
         "enabled": { "type": "boolean" }
       }
-    },
-    "tests": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["checkNetworkPolicy"],
-      "properties": {
-        "checkNetworkPolicy": { "type": "boolean" }
-      }
     }
   }
 }

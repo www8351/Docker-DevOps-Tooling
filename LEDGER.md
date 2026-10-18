@@ -52,6 +52,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  helm failed on 8fbd584 at the last assertion: "reached the Kubernetes API: the NetworkPolicy is not enforced". Everything before it passed: the namespace refused a bare pod, the chart installed under enforce=restricted, all three Deployments rolled out, and helm test printed nginx: 200 and httpd: 200. The check was wrong, not the policy: traffic between a pod and its own node is always allowed by the NetworkPolicy model, and on a one-node kind cluster the API server runs on that node.
+Action: Dropped tests.checkNetworkPolicy and the API probe from the chart (values, schema, test pod). CI instead execs into nginx, which may open no connection: a fetch of its own page must succeed (wget and exec work), and a fetch of the httpd pod IP on 8080, the pod the test pod just reached, must fail with a network error (timed out, refused, no route or unreachable). README and Taskfile updated. Local: actionlint clean, zizmor no findings, helm lint --strict passes, kubeconform Valid: 11; busybox wget -T 5 against a DROP rule printed "wget: download timed out" with exit 1 after 5s; the step logic passes on timed out and refused, and fails on success and on exec errors.
+Status: DONE
+
 Issue:  README and CHANGELOG do not describe the chart (Phase 4.5).
 Action: README gains a Kubernetes (Helm chart) section (hardening, shared httpd.conf and images, NetworkPolicy, install and helm test commands, local counter override, chart tasks), a helm job paragraph under CI, deploy/chart and compose/httpd in the layout, a Helm, kind and kubectl requirement row, and the chart tasks in the task list; CHANGELOG Unreleased gains the chart and the helm job under Added. Local: helm v3.22.1 lint --strict passes and, at --kube-version 1.37.0, renders the same objects as helm v4.3.1 apart from blank lines (kubeconform Valid: 11); the README states Helm 3 or 4 on that basis.
 Status: DONE

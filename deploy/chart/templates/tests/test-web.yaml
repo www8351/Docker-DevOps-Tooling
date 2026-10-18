@@ -1,9 +1,7 @@
 {{- $ctx := dict "root" . "component" "test" }}
-# `helm test`: fetch each enabled web server through its Service. With
-# tests.checkNetworkPolicy, also prove the NetworkPolicy is enforced: the
-# test pod may only reach the web servers and DNS, so a connection to the
-# Kubernetes API must fail. Runs the nginx image (busybox wget and nc) as
-# its nginx user, under the same restrictions as the release.
+# `helm test`: fetch each enabled web server through its Service. Runs the
+# nginx image (busybox wget) as its nginx user, under the same restrictions
+# as the release.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -35,13 +33,6 @@ spec:
           {{- if .Values.httpd.enabled }}
           wget -q -T 10 -O /dev/null "http://{{ include "devops-stack.componentName" (dict "root" . "component" "httpd") }}:{{ .Values.httpd.service.port }}/"
           echo "httpd: 200"
-          {{- end }}
-          {{- if and .Values.networkPolicy.enabled .Values.tests.checkNetworkPolicy }}
-          if nc -w 5 kubernetes.default.svc 443 </dev/null; then
-            echo "reached the Kubernetes API: the NetworkPolicy is not enforced" >&2
-            exit 1
-          fi
-          echo "kubernetes API: blocked by NetworkPolicy"
           {{- end }}
       resources:
         requests:

@@ -151,5 +151,4 @@ tasks:
         --set counter.image.repository=counter
         --set counter.image.tag=local
         --set counter.image.pullPolicy=Never
-        --set tests.checkNetworkPolicy=true
       - helm test devops-stack -n stack --logs
