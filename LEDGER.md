@@ -28,10 +28,6 @@ Status: OPEN
 
 ### Features closed as completed without code (milestone v0.3.0)
 
-Issue:  #14 dockerctl compose up, down, ps group does not exist.
-Action: Phase 3.5.
-Status: OPEN
-
 Issue:  #12 Helm chart for nginx, httpd, counter validated on kind does not exist.
 Action: Phase 4.
 Status: OPEN
@@ -51,6 +47,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  #14 dockerctl compose up, down, ps group did not exist (closed as completed without code).
+Action: Implements #14. New cli/dockerctl/compose.py registered as `dockerctl compose`: up [SERVICES] (-d, --wait by default, --wait-timeout 180, --no-wait), down (--volumes), ps (--all, --json); --file defaults to compose/docker-compose.yml with DOCKERCTL_COMPOSE_FILE override; repeatable --profile; services passed after --. The dockerctl image has no compose plugin (D13), so inside the image these exit 1 with docker's unknown command error. Tests first (collection failed), then implemented: 66 passed, coverage 100.00%, mypy and ruff clean. Live from the repo root: compose up --wait-timeout 90 nginx httpd reached healthy and printed Stack is up; ps and ps --json listed both healthy; a missing file via DOCKERCTL_COMPOSE_FILE exited 1 with compose file is invalid; down --volumes printed Stack is down.
+Status: DONE
 
 Issue:  containers deploy ran containers with none of the repo hardening and published ports on every interface.
 Action: deploy is hardened by default (D12): no-new-privileges, cap-drop ALL, read-only rootfs with /tmp on tmpfs, pids-limit 256, memory 256m, port bound to 127.0.0.1 unless an address is given. Escape hatches --cap-add, --tmpfs, --writable, --user, --memory, --pids-limit, --no-harden. Tests first (6 failed), then implemented. Local: 53 passed, coverage 100.00%. Live: nginx-unprivileged deployed with defaults ran with ReadonlyRootfs true, CapDrop [ALL], no-new-privileges, tmpfs /tmp, PidsLimit 256, Memory 268435456, bound 127.0.0.1:18080, HTTP 200.
