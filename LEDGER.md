@@ -8,10 +8,10 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 1, harden the stack and images
+### Next action: Phase 2, CI and supply chain
 
-Issue:  Phase 1 of the 0.3.0 roadmap (Track A plus #13) is in progress on branch ccr-1ddb6a39-8xlw9d.
-Action: Ship commits 1.1 to 1.11, push, open a draft PR, drive CI green, stop for owner merge.
+Issue:  Phase 2 of the 0.3.0 roadmap (Track B) is complete on branch ccr-1ddb6a39-8xlw9d as draft PR #72.
+Action: Drive CI green on the final head, then stop for owner merge. Phase 3 (CLI correctness, compose group #14) follows.
 Status: IN PROGRESS
 
 ### Security and correctness
@@ -20,31 +20,7 @@ Issue:  CLI passes positional arguments without a -- separator. containers deplo
 Action: Phase 3.3 and 3.4 (D12).
 Status: OPEN
 
-Issue:  release.yml publishes and signs without lint, tests or Trivy, and tags latest on every v* tag including prereleases. Trivy scans only the amd64 build; the published multi-arch images are never scanned.
-Action: Phase 2.10 and 2.11 (D11).
-Status: OPEN
-
 ### CI and reproducibility
-
-Issue:  No lockfile. Dependencies have lower bounds only. The Dockerfile resolves latest at build time. CI installs ruff unpinned.
-Action: Phase 2.3 and 2.5. uv.lock with hashes (D7).
-Status: OPEN
-
-Issue:  Pre-commit revisions drift from CI (ruff v0.8.0, mypy v2.1.0, hadolint beta tag).
-Action: Phase 2.7. Drive ruff and mypy from the lockfile.
-Status: OPEN
-
-Issue:  requires-python >=3.10 (3.10 reaches end of life October 2026) while CI tests 3.12 only.
-Action: Phase 2.3 and 2.6. Floor 3.11, test matrix 3.12 to 3.14 (D8).
-Status: OPEN
-
-Issue:  CI runs twice per PR push (push on all branches plus pull_request). cancel-in-progress can cancel a main publish. No job timeouts. stack-test sleeps a fixed 20 seconds.
-Action: Phase 1.9 replaces the sleep. Phase 2.1 fixes triggers, concurrency, timeouts.
-Status: OPEN
-
-Issue:  No workflow linting (actionlint, zizmor), no CodeQL, no SARIF upload. publish job and release.yml duplicate build and sign logic.
-Action: Phase 2.8, 2.9, 2.10.
-Status: OPEN
 
 ### Code quality
 
@@ -56,10 +32,6 @@ Status: OPEN
 
 Issue:  README layout tree, CLI command counts and remaining tables predate this roadmap.
 Action: Phase 5.3 refreshes layout, counts and the Kubernetes and CI sections.
-Status: OPEN
-
-Issue:  Taskfile has no scan or sbom tasks.
-Action: Phase 2.7.
 Status: OPEN
 
 ### Features closed as completed without code (milestone v0.3.0)
@@ -82,23 +54,75 @@ Status: OPEN
 
 ### Open Dependabot PRs
 
-Issue:  #38 python 3.13-alpine runtime only bump, failing.
-Action: Superseded by Phase 1.2. Owner closes after merge.
-Status: OPEN
-
-Issue:  #41 setuptools, #61 mypy, #63 typer, #64 ruff floor bumps.
-Action: Absorbed in Phase 2.3. Owner closes those Dependabot does not auto close.
-Status: OPEN
-
-Issue:  #49 hadolint-action, #50 action-gh-release, #56 setup-buildx, #57 build-push, #58 setup-qemu.
-Action: Absorbed in Phase 2.2 with the exact SHAs from each PR.
-Status: OPEN
-
 ---
 
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Adversarial review of the phase 2 diff: the dry-run registry service also ran (and was pulled from Docker Hub) for real publishes; major.minor relied on metadata-action alone to skip prereleases; gh release create failed on a re-run once the release existed; main publish did not wait for workflow-lint while releases did; comments overstated main concurrency and test gating; docs still said CI runs on every push.
+Action: Registry now starts in a step gated on dry-run (bound to 127.0.0.1:5000); major.minor explicitly disabled for tags containing a dash; github-release skips when the release exists; publish needs workflow-lint; ci.yml comments state that main runs queue one at a time with a newer merge replacing a waiting one (grouping by sha was rejected because two publishes could race on latest); README and SECURITY.md say pull requests instead of every push. self-repository is a valid zizmor id (zizmor reports 4 ignored). actionlint clean, zizmor No findings.
+Status: DONE
+
+Issue:  README, SECURITY.md and CHANGELOG still described per-branch CI, pip installs, Python 3.10, the old publish and an ungated release.
+Action: README: Python 3.11+ badge and requirement, uv, lockfile based dockerctl build, CI section with lint, test, workflow-lint, image SARIF, stack-test, shared publish steps and dry run, CodeQL, Dependabot with cooldown, gated release flow. SECURITY.md: cosign identity now _publish.yml@ref (existing regexp still matches), publish order, gated releases, lockfile, CodeQL and workflow linting. CHANGELOG Unreleased gains Security, Added and Changed entries including the Python 3.10 drop as breaking.
+Status: DONE
+
+Issue:  The dockerctl image ran Python 3.13; the 3.14 move had been deferred until the venv and typer were verified on 3.14.
+Action: Base moved to python:3.14-alpine3.24 pinned by index digest f6a589d4 (3.14.8). Evidence: CI test (3.14) leg passed on 4ee0dd8; local simulation of the uv builder on the pinned 3.14 base: Python 3.14.8, dockerctl version 0.2.1, --help renders, missing docker binary handled. The CI image job smoke run confirms the built image.
+Status: DONE
+
+Issue:  release.yml pushed and signed on any v* tag without lint, tests or a scan, tagged latest on prereleases, and only compared the tag string to pyproject.toml.
+Action: release.yml now runs guard (packaging normalised tag vs cli/pyproject.toml, stable tags need a CHANGELOG section), then the whole ci.yml via workflow_call with the union of nested permissions, then _publish.yml in release mode, then gh release create with --prerelease for tags containing a dash. Local guard runs: v0.2.1 matches 0.2.1; v0.3.0, v0.2.1-rc.1, v0.2.2 rejected; v0.3.0-rc.1 matches 0.3.0rc1 without a changelog section; stable v0.3.0 rejected without its section and accepted with it. actionlint clean, zizmor No findings. The tag path itself only runs on a real tag; an owner pushed v0.3.0-rc.1 after Phase 4 would exercise it without moving latest.
+Status: DONE
+
+Issue:  The main publish built and tagged multi-arch images in one step, so latest moved before anything scanned the pushed bytes; only the amd64 CI build was ever scanned; release.yml duplicated the logic.
+Action: New reusable _publish.yml (modes main, release, dry-run): push by digest only, Trivy on the pushed digest for linux/amd64 and linux/arm64, cosign sign the digest, then docker buildx imagetools create the tags and fail unless every tag resolves to the scanned digest. latest=auto keeps latest off prereleases. No build cache in publish. ci.yml publish calls it with mode main; a new publish-dry-run job runs it on every pull request against a registry:3.1.1 service container without signing. Local: imagetools retag preserved index digest 294b683c including attestation manifests; tag step exit 0 when tags match, exit 1 on a digest mismatch; actionlint clean; zizmor No findings (2 self-repository ignored with reason: ./ already pins the callee to this commit and actionlint does not parse $/ yet).
+Status: DONE
+
+Issue:  No code scanning: no CodeQL and Trivy results only in job logs.
+Action: New codeql.yml (python and actions, build-mode none, codeql-action v4.39.0 commit 6f2ac81f) on pushes to main, pull requests, weekly and on dispatch. The image job uploads a Trivy SARIF (MEDIUM and up, never gating) per image with continue-on-error for tokens that cannot write alerts; job gains security-events write. Repository is public, so code scanning needs no extra licence. Local: actionlint clean, zizmor No findings.
+Status: DONE
+
+Issue:  Workflows had no static analysis; zizmor flagged softprops/action-gh-release as superfluous (gh ships on the runner).
+Action: New workflow-lint job: actionlint from rhysd/actionlint:1.7.12 pinned by digest b1934ee5 (bundles shellcheck), then zizmor 1.31.1 with online audits using the read-only job token. Release notes now come from gh release create --verify-tag --generate-notes with the notes passed through an env var. Local: actionlint v1.7.7 and the 1.7.12 image clean, zizmor offline No findings (15 suppressed by the regular persona).
+Status: DONE
+
+Issue:  Dependabot tracked pip (now replaced by uv.lock), opened one PR per action, watched each Dockerfile through a separate entry, and had no release cooldown (zizmor dependabot-cooldown, 5 findings).
+Action: Dependabot ecosystems: github-actions (grouped into one PR), uv for /cli (minor and patch grouped), docker with directories /cli and /images/counter (also tracks the pinned uv stage), docker-compose for /compose; every ecosystem waits 7 days (cooldown default-days 7). Local: check-jsonschema vendor.dependabot ok, zizmor No findings.
+Status: DONE
+
+Issue:  lint failed on c554a50: hadolint-action v3.5.0 bundles hadolint v2.15.1, which reports DL3066 info: Non-numeric user-id may not be resolvable by host system, on USER app in both Dockerfiles, and the action fails at threshold info.
+Action: Reproduced locally with hadolint/hadolint:v2.15.1-alpine (v2.14.0 does not have the rule). Both Dockerfiles now use USER 10001:10001, which Kubernetes runAsNonRoot also needs to verify a non-root user. Pre-commit hadolint pin moved to v2.15.1. Local: hadolint v2.15.1 with --failure-threshold info clean on both Dockerfiles.
+Status: DONE
+
+Issue:  Pre-commit pinned ruff v0.8.0, mypy v2.1.0 with unpinned stubs and a hadolint beta tag, all drifting from CI; Taskfile installed with pip and had no lock, scan or sbom tasks.
+Action: ruff, ruff format and mypy are local hooks running uv run --locked --project cli --extra dev. hadolint runs from hadolint/hadolint:v2.14.0-alpine, shellcheck-precommit v0.11.0, actionlint v1.7.12, zizmor v1.31.1 (offline locally). Taskfile test, fmt, typecheck and cli use uv run --locked; lint runs compose config plus all hooks; new lock, scan and sbom tasks (aquasec/trivy:0.75.0 pinned by digest). CONTRIBUTING updated. Local: every hook passes except zizmor, whose 5 dependabot-cooldown and 1 superfluous-actions findings are fixed in the next commits; task test 45 passed, task typecheck Success, task cli -- version 0.2.1.
+Status: DONE
+
+Issue:  CI installed ruff unpinned and the CLI from pyproject.toml ranges, and tested only Python 3.12.
+Action: lint job runs on Python 3.11 with astral-sh/setup-uv v10.3.0 (commit 1c37ad07), uv sync --locked --extra dev, then ruff, ruff format, dockerctl version, mypy and pytest through uv run --locked. New test job runs the suite from the lock on 3.12, 3.13, 3.14; publish needs it. Local run of the lint commands on 3.11: All checks passed, 10 files already formatted, 0.2.1, mypy Success, 45 passed.
+Status: DONE
+
+Issue:  The dockerctl image resolved dependencies with pip at build time and reinstalled them on every source change.
+Action: Builder copies uv from ghcr.io/astral-sh/uv:0.11.32 pinned by index digest df4cae8f, runs uv sync --frozen --no-install-project on pyproject.toml plus uv.lock (cached layer), then uv sync --frozen --no-editable after copying the package. Local simulation in the pinned base with uv 0.11.32 from PyPI: typer 0.27.3 from the lock, no pip, no pytest, dockerctl version prints 0.2.1 after /src is removed. hadolint clean. GHCR blob host is blocked here, so the real image build is verified in CI.
+Status: DONE
+
+Issue:  No lockfile; lower bound only dependencies; requires-python >=3.10 with 3.10 reaching end of life; Dependabot floor bumps #41, #61, #63, #64 open.
+Action: cli/uv.lock generated with uv 0.11.32 (23 packages, 434 sha256 hashes). Floors raised: typer>=0.27.3, mypy>=2.4.0, ruff>=0.17.0, setuptools>=84.0.0; requires-python >=3.11, ruff py311, mypy 3.11. Locked: ruff 0.17.1, mypy 2.4.0, typer 0.27.3. No code changes needed for the new linters. Local: uv lock --check resolved, ruff and format clean, mypy Success no issues in 10 files, pytest 45 passed on 3.11, 3.12, 3.13 and 3.14, coverage 100.00%.
+Status: DONE
+
+Issue:  Dependabot action bumps #49, #50, #56, #57, #58 open since August and September.
+Action: Applied the exact SHAs from each Dependabot branch: hadolint-action v3.5.0, action-gh-release v3.0.3, setup-buildx-action v4.4.1, build-push-action v7.4.0, setup-qemu-action v4.4.0. Dependabot closes those PRs once main carries the versions.
+Status: DONE
+
+Issue:  CI ran twice per PR push (push on every branch plus pull_request), cancel-in-progress could cancel a publish on main, no job had a timeout, and checkouts kept the token in .git/config.
+Action: ci.yml triggers on push to main, pull_request, workflow_dispatch and workflow_call; concurrency group per PR number or ref, cancelling only pull_request runs; timeout-minutes on every job in ci.yml and release.yml; persist-credentials false on all six checkouts. actionlint v1.7.7 with shellcheck: clean.
+Status: DONE
+
+Issue:  Phase 1 PR #65.
+Action: Owner merged PR #65 into main as b0ca5ed (head c2afef7, all required checks green). Dependabot #38 closed. Branch ccr-1ddb6a39-8xlw9d restarted from main.
+Status: DONE
 
 Issue:  Adversarial review of the phase 1 diff: docs said Dependabot bumps compose pins but no docker-compose ecosystem existed; the fail-closed CI step passed on any up failure and skipped Grafana; task down and clean left the observability containers and volumes running; wait-prom-targets.sh curl had no timeout; the counter heartbeat silently made --tmpfs /tmp mandatory under --read-only; docs understated docker.sock holders and the stub_status residual.
 Action: Added the Dependabot docker-compose ecosystem (moved forward from Phase 2.12). Fail-closed step now pulls first, checks portainer and grafana, requires the secret path in the error and no running container. down and clean pass --profile observability; obs:down removed. curl -m 10. README, SECURITY.md, CHANGELOG, Dockerfile comment and gen-secrets.sh header corrected. Local: step prints portainer refused and grafana refused, exit 0; with secrets present it fails with portainer started without its admin secret; task clean after obs:up leaves 0 containers and 0 volumes.

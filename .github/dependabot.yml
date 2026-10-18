@@ -1,17 +1,29 @@
 # Weekly dependency updates for every ecosystem in the repo.
-# The docker ecosystem watches the Dockerfiles; docker-compose watches the
-# tag@digest image pins written literally in compose/docker-compose.yml.
+# The docker ecosystem watches the Dockerfiles (including the pinned uv
+# stage); docker-compose watches the tag@digest image pins written literally
+# in compose/docker-compose.yml; uv updates cli/uv.lock.
+#
+# Every ecosystem waits 7 days after a release before proposing it, so a
+# compromised or broken release has time to be caught upstream first.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      # Action bumps arrive as one weekly PR instead of one per action.
+      github-actions:
+        patterns: ["*"]
 
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: "/cli"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       # Minor/patch python updates arrive as one weekly PR instead of five.
       python-minor-patch:
@@ -19,16 +31,15 @@ updates:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: docker
-    directory: "/images/counter"
+    directories: ["/cli", "/images/counter"]
     schedule:
       interval: weekly
-
-  - package-ecosystem: docker
-    directory: "/cli"
-    schedule:
-      interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker-compose
     directory: "/compose"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
