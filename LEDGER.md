@@ -8,11 +8,15 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 5, docs, ADRs, demo GIF and release 0.3.0
+### Next action: owner review of the Phase 5 PR, then the v0.3.0 tag
 
-Issue:  Phase 5 of the 0.3.0 roadmap (#15, #17, docs accuracy, release prep) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 3d9c57f.
-Action: Ship commits 5.1 to 5.6, open a draft PR, drive CI green, stop for owner merge. The owner pushes the v0.3.0 tag.
-Status: IN PROGRESS
+Issue:  Phase 5 of the 0.3.0 roadmap (#15, #17, docs accuracy, release prep) is complete on branch ccr-1ddb6a39-8xlw9d; it is the last phase of the roadmap.
+Action: Owner: review and merge the Phase 5 PR, then push tag v0.3.0 from main. release.yml checks the tag against cli/pyproject.toml (0.3.0), the chart appVersion (0.3.0) and the CHANGELOG section before anything is published. Pushing tags is not authorized for the agent.
+Status: OPEN
+
+Issue:  Checks added during the roadmap are not in the main-protection ruleset: test, workflow-lint, publish-dry-run, helm.
+Action: Owner decides whether to add them as required status checks. Editing the ruleset is not authorized for the agent.
+Status: OPEN
 
 ### Security and correctness
 
@@ -51,6 +55,10 @@ Status: DONE
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  First main run after merging PR #78, and LEDGER close-out for the 0.3.0 roadmap (Phase 5.6).
+Action: CI run 39171496751 on 3d9c57f: every job success, helm included (restricted namespace, install, helm test, NetworkPolicy probe), and publish (counter) and publish (dockerctl) pushed by digest, scanned both platforms, signed and tagged. LEDGER: the next action is now the owner's merge and tag; ruleset additions and the setup-uv pin stay OPEN as owner decisions; #12, #15 and #17 are DONE; decisions keep their status (owner rulings FINAL, technical choices REVISIT).
+Status: DONE
 
 Issue:  Release 0.3.0 preparation (Phase 5.5); the chart runs counter at its appVersion, but nothing tied that to the release tag (D15).
 Action: cli/pyproject.toml 0.3.0 and uv lock (Updated dockerctl v0.2.1 -> v0.3.0; uv lock --check clean); deploy/chart appVersion already 0.3.0. release.yml guard also requires deploy/chart/Chart.yaml appVersion to equal the tag. CHANGELOG: [Unreleased] cut to [0.3.0] - 2026-10-18 with a summary line, Phase 5 items added (ADRs, demo GIF, Hebrew README, contributor docs), the release guard bullet updated, compare links for 0.3.0 and the new Unreleased. README: v0.3.0 in highlights and the releases section, the appVersion check described in English and Hebrew. Local: the guard script extracted from release.yml printed "v0.3.0 matches cli/pyproject.toml (0.3.0) and the chart appVersion" (exit 0), and exited 1 for v0.3.1 (pyproject mismatch), v0.3.0-rc.1 (pyproject mismatch) and appVersion 0.2.1 ("appVersion is 0.2.1, expected 0.3.0"); before the changelog cut it exited 1 with "CHANGELOG.md has no '## [0.3.0]' section". pytest 75 passed, coverage 100.00%, dockerctl --version 0.3.0; actionlint clean; zizmor no findings; helm lint passes.
