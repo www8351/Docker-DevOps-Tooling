@@ -26,16 +26,8 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  CI installs ruff unpinned and the CLI from pyproject.toml, ignoring cli/uv.lock, and tests only Python 3.12.
-Action: Phase 2.6 (CI from the lock, 3.11 lint, 3.12 to 3.14 test matrix).
-Status: OPEN
-
 Issue:  Pre-commit revisions drift from CI (ruff v0.8.0, mypy v2.1.0, hadolint beta tag).
 Action: Phase 2.7. Drive ruff and mypy from the lockfile.
-Status: OPEN
-
-Issue:  requires-python >=3.10 (3.10 reaches end of life October 2026) while CI tests 3.12 only.
-Action: Phase 2.3 and 2.6. Floor 3.11, test matrix 3.12 to 3.14 (D8).
 Status: OPEN
 
 Issue:  No workflow linting (actionlint, zizmor), no CodeQL, no SARIF upload. publish job and release.yml duplicate build and sign logic.
@@ -83,6 +75,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  CI installed ruff unpinned and the CLI from pyproject.toml ranges, and tested only Python 3.12.
+Action: lint job runs on Python 3.11 with astral-sh/setup-uv v10.3.0 (commit 1c37ad07), uv sync --locked --extra dev, then ruff, ruff format, dockerctl version, mypy and pytest through uv run --locked. New test job runs the suite from the lock on 3.12, 3.13, 3.14; publish needs it. Local run of the lint commands on 3.11: All checks passed, 10 files already formatted, 0.2.1, mypy Success, 45 passed.
+Status: DONE
 
 Issue:  The dockerctl image resolved dependencies with pip at build time and reinstalled them on every source change.
 Action: Builder copies uv from ghcr.io/astral-sh/uv:0.11.32 pinned by index digest df4cae8f, runs uv sync --frozen --no-install-project on pyproject.toml plus uv.lock (cached layer), then uv sync --frozen --no-editable after copying the package. Local simulation in the pinned base with uv 0.11.32 from PyPI: typer 0.27.3 from the lock, no pip, no pytest, dockerctl version prints 0.2.1 after /src is removed. hadolint clean. GHCR blob host is blocked here, so the real image build is verified in CI.

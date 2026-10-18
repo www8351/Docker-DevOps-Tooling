@@ -52,29 +52,61 @@ jobs:
         with:
           additional_files: counter.sh
 
+      # Lint, types and tests run on the oldest supported Python, with every
+      # tool at the version cli/uv.lock pins.
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: cli/pyproject.toml
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+
+      - name: Install the locked environment
+        working-directory: cli
+        run: uv sync --locked --extra dev --python 3.11
 
       - name: Lint Python (ruff)
+        working-directory: cli
         run: |
-          pip install ruff
-          ruff check cli
-          ruff format --check cli
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
 
       - name: Import-check the CLI
-        run: |
-          pip install -e 'cli[dev]'
-          dockerctl version
+        working-directory: cli
+        run: uv run --locked dockerctl version
 
       - name: Type-check (mypy)
-        run: mypy --config-file cli/pyproject.toml cli/dockerctl cli/tests
+        working-directory: cli
+        run: uv run --locked mypy dockerctl tests
 
       - name: Run tests (pytest, coverage-gated)
-        run: pytest cli
+        working-directory: cli
+        run: uv run --locked pytest
+
+  # The rest of the supported range. Not a required check; lint covers 3.11.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+
+      - name: Run tests on Python ${{ matrix.python }}
+        working-directory: cli
+        run: uv run --locked --python "${{ matrix.python }}" --extra test pytest
 
   image:
     runs-on: ubuntu-latest
@@ -238,7 +270,7 @@ jobs:
         run: docker compose -f compose/docker-compose.yml --profile observability down -v
 
   publish:
-    needs: [lint, image, stack-test]
+    needs: [lint, test, image, stack-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
