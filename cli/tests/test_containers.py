@@ -32,15 +32,125 @@ def test_rm_force(runner: CliRunner, record_calls: RecordCalls) -> None:
     assert calls[0][0] == ("rm", "--force", "--", "web")
 
 
-def test_deploy_builds_run_args(runner: CliRunner, record_calls: RecordCalls) -> None:
+HARDENED = (
+    "--security-opt",
+    "no-new-privileges:true",
+    "--cap-drop",
+    "ALL",
+)
+
+
+def test_deploy_is_hardened_by_default(runner: CliRunner, record_calls: RecordCalls) -> None:
     calls = record_calls(containers)
     result = runner.invoke(
         app,
         ["containers", "deploy", "nginx:latest", "--name", "web", "--port", "8080:80"],
     )
     assert result.exit_code == 0
+    assert calls[0][0] == (
+        "run",
+        "-d",
+        "--name",
+        "web",
+        *HARDENED,
+        "--read-only",
+        "--tmpfs",
+        "/tmp",
+        "--pids-limit",
+        "256",
+        "--memory",
+        "256m",
+        "-p",
+        "127.0.0.1:8080:80",
+        "--",
+        "nginx:latest",
+    )
+    assert "Deployed web from nginx:latest on 127.0.0.1:8080:80" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("given", "published"),
+    [
+        ("8080:80", "127.0.0.1:8080:80"),
+        ("80", "127.0.0.1::80"),
+        ("8443:443/tcp", "127.0.0.1:8443:443/tcp"),
+        ("0.0.0.0:8080:80", "0.0.0.0:8080:80"),
+        ("[::1]:8080:80", "[::1]:8080:80"),
+    ],
+)
+def test_deploy_binds_to_loopback_unless_an_address_is_given(
+    runner: CliRunner, record_calls: RecordCalls, given: str, published: str
+) -> None:
+    calls = record_calls(containers)
+    result = runner.invoke(app, ["containers", "deploy", "img", "-n", "web", "-p", given])
+    assert result.exit_code == 0
+    args = calls[0][0]
+    assert args[args.index("-p") + 1] == published
+
+
+def test_deploy_escape_hatches(runner: CliRunner, record_calls: RecordCalls) -> None:
+    calls = record_calls(containers)
+    result = runner.invoke(
+        app,
+        [
+            "containers",
+            "deploy",
+            "img",
+            "-n",
+            "web",
+            "-p",
+            "8080:80",
+            "--cap-add",
+            "NET_BIND_SERVICE",
+            "--cap-add",
+            "CHOWN",
+            "--tmpfs",
+            "/var/cache/nginx",
+            "--writable",
+            "--user",
+            "101:101",
+            "--memory",
+            "64m",
+            "--pids-limit",
+            "32",
+        ],
+    )
+    assert result.exit_code == 0
+    assert calls[0][0] == (
+        "run",
+        "-d",
+        "--name",
+        "web",
+        *HARDENED,
+        "--cap-add",
+        "NET_BIND_SERVICE",
+        "--cap-add",
+        "CHOWN",
+        "--tmpfs",
+        "/tmp",
+        "--tmpfs",
+        "/var/cache/nginx",
+        "--pids-limit",
+        "32",
+        "--memory",
+        "64m",
+        "--user",
+        "101:101",
+        "-p",
+        "127.0.0.1:8080:80",
+        "--",
+        "img",
+    )
+
+
+def test_deploy_no_harden_is_a_plain_run(runner: CliRunner, record_calls: RecordCalls) -> None:
+    calls = record_calls(containers)
+    result = runner.invoke(
+        app,
+        ["containers", "deploy", "nginx:latest", "-n", "web", "-p", "8080:80", "--no-harden"],
+    )
+    assert result.exit_code == 0
     assert calls[0][0] == ("run", "-d", "--name", "web", "-p", "8080:80", "--", "nginx:latest")
-    assert "Deployed web" in result.stdout
 
 
 def test_ls_json(runner: CliRunner, record_calls: RecordCalls) -> None:

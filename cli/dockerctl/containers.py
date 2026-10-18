@@ -50,16 +50,75 @@ def remove(
     typer.echo(f"Removed container {container_id}")
 
 
+def _loopback(port: str) -> str:
+    """Bind a port mapping to 127.0.0.1 unless it already names a host address.
+
+    "8080:80" -> "127.0.0.1:8080:80", "80" -> "127.0.0.1::80" (random host
+    port); "0.0.0.0:8080:80" and "[::1]:8080:80" are left as given.
+    """
+    if port.startswith("[") or port.count(":") >= 2:
+        return port
+    if ":" in port:
+        return f"127.0.0.1:{port}"
+    return f"127.0.0.1::{port}"
+
+
 @app.command()
 def deploy(
     image: str = typer.Argument(..., help="Image to run, e.g. nginx:latest"),
     name: str = typer.Option(..., "--name", "-n", help="Container name"),
-    port: str = typer.Option(..., "--port", "-p", help="Port mapping host:container, e.g. 8080:80"),
+    port: str = typer.Option(
+        ...,
+        "--port",
+        "-p",
+        help="Port mapping host:container, e.g. 8080:80 (bound to 127.0.0.1 unless "
+        "an address is given)",
+    ),
+    cap_add: Annotated[
+        list[str] | None,
+        typer.Option("--cap-add", help="Capability to add back after dropping all (repeatable)"),
+    ] = None,
+    tmpfs: Annotated[
+        list[str] | None,
+        typer.Option("--tmpfs", help="Extra writable tmpfs path; /tmp is always one (repeatable)"),
+    ] = None,
+    writable: bool = typer.Option(
+        False, "--writable", help="Keep the root filesystem writable instead of read-only"
+    ),
+    user: str | None = typer.Option(None, "--user", help="Run as UID[:GID]"),
+    memory: str = typer.Option("256m", "--memory", help="Memory limit"),
+    pids_limit: int = typer.Option(256, "--pids-limit", help="Maximum number of processes"),
+    no_harden: bool = typer.Option(
+        False,
+        "--no-harden",
+        help="Plain `docker run -d` with only --name, --port and --user applied",
+    ),
 ) -> None:
-    """Run a detached container with a name and port mapping."""
+    """Run a detached container, hardened by default.
+
+    By default the container gets no-new-privileges, all capabilities dropped,
+    a read-only root filesystem with /tmp on tmpfs, process and memory limits,
+    and its port published on 127.0.0.1 only. Each default has an escape
+    hatch; --no-harden turns them all off.
+    """
+    args = ["run", "-d", "--name", name]
+    published = port
+    if not no_harden:
+        published = _loopback(port)
+        args += ["--security-opt", "no-new-privileges:true", "--cap-drop", "ALL"]
+        for cap in cap_add or []:
+            args += ["--cap-add", cap]
+        if not writable:
+            args.append("--read-only")
+        for path in ["/tmp", *(tmpfs or [])]:
+            args += ["--tmpfs", path]
+        args += ["--pids-limit", str(pids_limit), "--memory", memory]
+    if user:
+        args += ["--user", user]
+    args += ["-p", published, "--", image]
     with docker_errors():
-        run("run", "-d", "--name", name, "-p", port, "--", image)
-    typer.echo(f"Deployed {name} from {image} on {port}")
+        run(*args)
+    typer.echo(f"Deployed {name} from {image} on {published}")
 
 
 @app.command()

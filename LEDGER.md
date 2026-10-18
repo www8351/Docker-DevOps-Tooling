@@ -16,10 +16,6 @@ Status: IN PROGRESS
 
 ### Security and correctness
 
-Issue:  containers deploy runs containers with none of the repo hardening.
-Action: Phase 3.4 (D12).
-Status: OPEN
-
 ### CI and reproducibility
 
 ### Code quality
@@ -55,6 +51,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  containers deploy ran containers with none of the repo hardening and published ports on every interface.
+Action: deploy is hardened by default (D12): no-new-privileges, cap-drop ALL, read-only rootfs with /tmp on tmpfs, pids-limit 256, memory 256m, port bound to 127.0.0.1 unless an address is given. Escape hatches --cap-add, --tmpfs, --writable, --user, --memory, --pids-limit, --no-harden. Tests first (6 failed), then implemented. Local: 53 passed, coverage 100.00%. Live: nginx-unprivileged deployed with defaults ran with ReadonlyRootfs true, CapDrop [ALL], no-new-privileges, tmpfs /tmp, PidsLimit 256, Memory 268435456, bound 127.0.0.1:18080, HTTP 200.
+Status: DONE
 
 Issue:  Positional values went straight into docker argv, so a value starting with a dash would be parsed as a docker flag.
 Action: Every docker call in containers.py and images.py now puts -- before its positional arguments. Tests updated first (16 failed), then implemented; new test passes a container named -f through as a name. Local: 46 passed, coverage 100.00%, mypy and ruff clean. Live against docker 29.8.2: images pull, build, tag, push (to a local registry), rm and containers deploy, logs, inspect, stats, exec, restart, stop, start, rm all ok.
