@@ -41,8 +41,8 @@ Action: Phase 5.1 added docs/adr with records 0001 to 0014.
 Status: DONE
 
 Issue:  #17 demo GIF from docs/assets/demo.tape was never rendered or committed.
-Action: Phase 5.2.
-Status: OPEN
+Action: Phase 5.2 rendered docs/assets/demo.gif from a rewritten tape.
+Status: DONE
 
 ### Open Dependabot PRs
 
@@ -51,6 +51,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  #17 demo GIF from docs/assets/demo.tape was never rendered (Phase 5.2); the old tape called dockerctl without installing it and showed none of the hardening.
+Action: Rewrote the tape: bash with a plain prompt and Wait on it instead of fixed sleeps, dockerctl from the locked project; task up (secrets, wait for health), compose ps, a hardened dockerctl deploy, docker inspect showing read-only=true cap-drop=[ALL] pids=256, curl returning 200, rm --force, task down. Rendered here with vhs v0.12.1 (Go module proxy), ttyd 1.7.4 (Ubuntu archive), ffmpeg and the preinstalled Playwright Chromium (VHS_NO_SANDBOX=1, running as root). Result docs/assets/demo.gif: 998537 bytes, 38.64s, 1100x620; frames checked by eye. The counter image in the recording was built locally from the runtime stage of images/counter/Dockerfile without its shellcheck stage, because apk mirrors are unreachable from this machine; the script and base image are the same. The first render failed because the wait pattern expected a trailing space after the prompt.
+Status: DONE
 
 Issue:  Phase 4 PR #78.
 Action: Owner merged PR #78 into main as 3d9c57f (head 229e36c, all 15 run checks green including helm, publish skipped). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease. The pending check-in was cancelled.
