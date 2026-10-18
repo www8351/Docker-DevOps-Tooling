@@ -27,8 +27,8 @@ Status: OPEN
 ### Documentation
 
 Issue:  README layout tree, CLI command counts and remaining tables predate this roadmap.
-Action: Phase 5.3 refreshes layout, counts and the Kubernetes and CI sections.
-Status: OPEN
+Action: Phase 5.3 refreshed layout, counts, tasks and links, and added a full Hebrew section.
+Status: DONE
 
 ### Features closed as completed without code (milestone v0.3.0)
 
@@ -51,6 +51,10 @@ Status: DONE
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  README predates the roadmap in places (layout tree, task list, test count) and its Hebrew part was a short intro that mixed English words into Hebrew sentences (Phase 5.3).
+Action: README: tagline names the Helm chart; demo GIF embedded; highlights updated (75 tests, the chart on kind under restricted, the ADRs); architecture diagram and layer table gain the chart; layout tree rewritten from the actual tree (compose subfolders, deploy/chart, cli modules and tests, scripts, docs/adr, workflows); task list matches every Taskfile task; design principles and links gain the ADRs; every em dash removed. A full Hebrew section now follows the English one and mirrors every section, with tables and the full command reference pointed to the English part; English terms in it sit in backticks only, and the top intro links to it. Local: no em or en dashes; no mention of LEDGER, CLAUDE or AI; every relative link resolves; a scan of Hebrew lines finds no Latin word outside backticks or link targets except the bilingual "What is this? · מה זה?" heading.
+Status: DONE
 
 Issue:  #17 demo GIF from docs/assets/demo.tape was never rendered (Phase 5.2); the old tape called dockerctl without installing it and showed none of the hardening.
 Action: Rewrote the tape: bash with a plain prompt and Wait on it instead of fixed sleeps, dockerctl from the locked project; task up (secrets, wait for health), compose ps, a hardened dockerctl deploy, docker inspect showing read-only=true cap-drop=[ALL] pids=256, curl returning 200, rm --force, task down. Rendered here with vhs v0.12.1 (Go module proxy), ttyd 1.7.4 (Ubuntu archive), ffmpeg and the preinstalled Playwright Chromium (VHS_NO_SANDBOX=1, running as root). Result docs/assets/demo.gif: 998537 bytes, 38.64s, 1100x620; frames checked by eye. The counter image in the recording was built locally from the runtime stage of images/counter/Dockerfile without its shellcheck stage, because apk mirrors are unreachable from this machine; the script and base image are the same. The first render failed because the wait pattern expected a trailing space after the prompt.
