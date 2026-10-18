@@ -1,24 +1,32 @@
 name: CI
 
 on:
+  # Branch pushes are covered by their pull request; main still runs (and
+  # publishes) on every merge. workflow_call lets release.yml gate on it.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+  workflow_call:
 
 # Least privilege by default; jobs that need more escalate explicitly.
 permissions:
   contents: read
 
-# One run per ref; superseded pushes are cancelled.
+# One run per pull request or ref. Superseded PR runs are cancelled; runs on
+# main and tags are not, so a publish never stops half way.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Validate compose file
         run: docker compose -f compose/docker-compose.yml config --quiet
@@ -70,6 +78,7 @@ jobs:
 
   image:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -80,6 +89,8 @@ jobs:
             context: cli
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -131,8 +142,11 @@ jobs:
   # services really serve traffic.
   stack-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Admin passwords have no defaults: without the secret files the
       # services that need them must refuse to start, and for that reason
@@ -227,6 +241,7 @@ jobs:
     needs: [lint, image, stack-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -241,6 +256,8 @@ jobs:
             context: cli
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU (arm64 emulation)
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0

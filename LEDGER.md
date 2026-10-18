@@ -8,10 +8,10 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 1, harden the stack and images
+### Next action: Phase 2, CI and supply chain
 
-Issue:  Phase 1 of the 0.3.0 roadmap (Track A plus #13) is in progress on branch ccr-1ddb6a39-8xlw9d.
-Action: Ship commits 1.1 to 1.11, push, open a draft PR, drive CI green, stop for owner merge.
+Issue:  Phase 2 of the 0.3.0 roadmap (Track B) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at b0ca5ed.
+Action: Ship commits 2.1 to 2.14, open a draft PR, drive CI green, stop for owner merge.
 Status: IN PROGRESS
 
 ### Security and correctness
@@ -36,10 +36,6 @@ Status: OPEN
 
 Issue:  requires-python >=3.10 (3.10 reaches end of life October 2026) while CI tests 3.12 only.
 Action: Phase 2.3 and 2.6. Floor 3.11, test matrix 3.12 to 3.14 (D8).
-Status: OPEN
-
-Issue:  CI runs twice per PR push (push on all branches plus pull_request). cancel-in-progress can cancel a main publish. No job timeouts. stack-test sleeps a fixed 20 seconds.
-Action: Phase 1.9 replaces the sleep. Phase 2.1 fixes triggers, concurrency, timeouts.
 Status: OPEN
 
 Issue:  No workflow linting (actionlint, zizmor), no CodeQL, no SARIF upload. publish job and release.yml duplicate build and sign logic.
@@ -82,10 +78,6 @@ Status: OPEN
 
 ### Open Dependabot PRs
 
-Issue:  #38 python 3.13-alpine runtime only bump, failing.
-Action: Superseded by Phase 1.2. Owner closes after merge.
-Status: OPEN
-
 Issue:  #41 setuptools, #61 mypy, #63 typer, #64 ruff floor bumps.
 Action: Absorbed in Phase 2.3. Owner closes those Dependabot does not auto close.
 Status: OPEN
@@ -99,6 +91,14 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  CI ran twice per PR push (push on every branch plus pull_request), cancel-in-progress could cancel a publish on main, no job had a timeout, and checkouts kept the token in .git/config.
+Action: ci.yml triggers on push to main, pull_request, workflow_dispatch and workflow_call; concurrency group per PR number or ref, cancelling only pull_request runs; timeout-minutes on every job in ci.yml and release.yml; persist-credentials false on all six checkouts. actionlint v1.7.7 with shellcheck: clean.
+Status: DONE
+
+Issue:  Phase 1 PR #65.
+Action: Owner merged PR #65 into main as b0ca5ed (head c2afef7, all required checks green). Dependabot #38 closed. Branch ccr-1ddb6a39-8xlw9d restarted from main.
+Status: DONE
 
 Issue:  Adversarial review of the phase 1 diff: docs said Dependabot bumps compose pins but no docker-compose ecosystem existed; the fail-closed CI step passed on any up failure and skipped Grafana; task down and clean left the observability containers and volumes running; wait-prom-targets.sh curl had no timeout; the counter heartbeat silently made --tmpfs /tmp mandatory under --read-only; docs understated docker.sock holders and the stub_status residual.
 Action: Added the Dependabot docker-compose ecosystem (moved forward from Phase 2.12). Fail-closed step now pulls first, checks portainer and grafana, requires the secret path in the error and no running container. down and clean pass --profile observability; obs:down removed. curl -m 10. README, SECURITY.md, CHANGELOG, Dockerfile comment and gen-secrets.sh header corrected. Local: step prints portainer refused and grafana refused, exit 0; with secrets present it fails with portainer started without its admin secret; task clean after obs:up leaves 0 containers and 0 volumes.
