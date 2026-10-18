@@ -26,10 +26,6 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  Pre-commit revisions drift from CI (ruff v0.8.0, mypy v2.1.0, hadolint beta tag).
-Action: Phase 2.7. Drive ruff and mypy from the lockfile.
-Status: OPEN
-
 Issue:  No workflow linting (actionlint, zizmor), no CodeQL, no SARIF upload. publish job and release.yml duplicate build and sign logic.
 Action: Phase 2.8, 2.9, 2.10.
 Status: OPEN
@@ -44,10 +40,6 @@ Status: OPEN
 
 Issue:  README layout tree, CLI command counts and remaining tables predate this roadmap.
 Action: Phase 5.3 refreshes layout, counts and the Kubernetes and CI sections.
-Status: OPEN
-
-Issue:  Taskfile has no scan or sbom tasks.
-Action: Phase 2.7.
 Status: OPEN
 
 ### Features closed as completed without code (milestone v0.3.0)
@@ -75,6 +67,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Pre-commit pinned ruff v0.8.0, mypy v2.1.0 with unpinned stubs and a hadolint beta tag, all drifting from CI; Taskfile installed with pip and had no lock, scan or sbom tasks.
+Action: ruff, ruff format and mypy are local hooks running uv run --locked --project cli --extra dev. hadolint runs from hadolint/hadolint:v2.14.0-alpine, shellcheck-precommit v0.11.0, actionlint v1.7.12, zizmor v1.31.1 (offline locally). Taskfile test, fmt, typecheck and cli use uv run --locked; lint runs compose config plus all hooks; new lock, scan and sbom tasks (aquasec/trivy:0.75.0 pinned by digest). CONTRIBUTING updated. Local: every hook passes except zizmor, whose 5 dependabot-cooldown and 1 superfluous-actions findings are fixed in the next commits; task test 45 passed, task typecheck Success, task cli -- version 0.2.1.
+Status: DONE
 
 Issue:  CI installed ruff unpinned and the CLI from pyproject.toml ranges, and tested only Python 3.12.
 Action: lint job runs on Python 3.11 with astral-sh/setup-uv v10.3.0 (commit 1c37ad07), uv sync --locked --extra dev, then ruff, ruff format, dockerctl version, mypy and pytest through uv run --locked. New test job runs the suite from the lock on 3.12, 3.13, 3.14; publish needs it. Local run of the lint commands on 3.11: All checks passed, 10 files already formatted, 0.2.1, mypy Success, 45 passed.

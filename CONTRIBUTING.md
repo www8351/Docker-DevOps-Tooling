@@ -7,13 +7,17 @@ strict — the gates below keep it that way.
 
 ```bash
 # 1. Task runner (optional but recommended): https://taskfile.dev/installation/
-# 2. Python dev environment
-pip install -e 'cli[dev]'        # dockerctl + pytest/pytest-cov + mypy + ruff
+# 2. uv: https://docs.astral.sh/uv/  (manages the locked Python environment)
+cd cli && uv sync --locked --extra dev && cd ..   # dockerctl + pytest/pytest-cov + mypy + ruff
 
-# 3. Local git hooks
-pip install pre-commit
+# 3. Local git hooks (ruff and mypy run from cli/uv.lock)
+uv tool install pre-commit
 pre-commit install
 ```
+
+`pip install -e 'cli[dev]'` still works, but resolves unpinned versions; CI
+and the hooks always use the lockfile. After changing dependencies in
+`cli/pyproject.toml`, run `task lock` and commit `cli/uv.lock`.
 
 ## Quality gates
 
@@ -21,13 +25,14 @@ Everything that CI runs is available locally:
 
 | Command | What it checks |
 |---------|----------------|
-| `task lint` | compose config, hadolint (both Dockerfiles), shellcheck, ruff, mypy |
+| `task lint` | compose config, then every pre-commit hook: ruff, mypy, hadolint (both Dockerfiles), shellcheck, actionlint, zizmor |
 | `task typecheck` | mypy strict mode on `cli/dockerctl` and `cli/tests` |
 | `task test` | pytest with a 90% coverage gate (`--cov-fail-under=90`) |
 | `task fmt` | ruff auto-format + autofix |
+| `task scan` / `task sbom` | Trivy scan / CycloneDX SBOMs of both images (pinned Trivy image) |
 
-A change is mergeable when all three of `task lint`, `task test`, and
-`pre-commit run --all-files` pass.
+A change is mergeable when `task lint` and `task test` pass. CI also runs
+the test suite on every supported Python (3.11 to 3.14).
 
 ## Conventions
 

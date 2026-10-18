@@ -1,30 +1,50 @@
-# Local quality gates. Install: pip install pre-commit && pre-commit install
+# Local quality gates. Install: uv tool install pre-commit && pre-commit install
 # Run on all files: pre-commit run --all-files
+#
+# ruff and mypy run from cli/uv.lock through `uv run --locked`, so the hooks
+# always use exactly the versions CI uses and cannot drift. The other tools
+# are pinned by tag here.
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
+        name: ruff (locked)
+        language: system
+        entry: uv run --locked --project cli --extra dev ruff check --fix
+        types: [python]
         files: ^cli/
       - id: ruff-format
+        name: ruff format (locked)
+        language: system
+        entry: uv run --locked --project cli --extra dev ruff format
+        types: [python]
         files: ^cli/
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.1.0
-    hooks:
       - id: mypy
+        name: mypy strict (locked)
+        language: system
+        entry: uv run --locked --project cli --extra dev mypy --config-file cli/pyproject.toml cli/dockerctl cli/tests
+        pass_filenames: false
         files: ^cli/.*\.py$
-        args: [--config-file=cli/pyproject.toml]
-        additional_dependencies: [typer, pytest]
+      - id: hadolint
+        name: hadolint
+        language: docker_image
+        entry: hadolint/hadolint:v2.14.0-alpine hadolint
+        files: Dockerfile$
 
   - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: v0.10.0
+    rev: v0.11.0
     hooks:
       - id: shellcheck
 
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.13.1-beta
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
     hooks:
-      - id: hadolint
-        files: Dockerfile$
+      - id: actionlint
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.31.1
+    hooks:
+      # Offline locally so no GitHub token is needed; the workflow-lint CI
+      # job runs the online audits too.
+      - id: zizmor
+        args: [--offline]

@@ -9,6 +9,9 @@ env:
 dotenv:
   - compose/.env
 
+vars:
+  TRIVY_IMAGE: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+
 tasks:
   default:
     desc: List available tasks
@@ -60,38 +63,62 @@ tasks:
     cmds:
       - docker compose --profile observability down --volumes
 
+  # Python tasks run from cli/uv.lock, so local tools match CI exactly.
   test:
-    desc: Run the dockerctl unit test suite
+    desc: Run the dockerctl unit test suite (from the lockfile)
     dir: cli
     cmds:
-      - pip install -e '.[test]'
-      - pytest
+      - uv run --locked --extra test pytest
 
   fmt:
     desc: Auto-format Python code with ruff
+    dir: cli
     cmds:
-      - ruff format cli
-      - ruff check --fix cli
+      - uv run --locked --extra dev ruff format .
+      - uv run --locked --extra dev ruff check --fix .
 
   typecheck:
     desc: Type-check the dockerctl CLI with mypy
     dir: cli
     cmds:
-      - mypy dockerctl tests
+      - uv run --locked --extra dev mypy dockerctl tests
+
+  lock:
+    desc: Re-resolve cli/uv.lock after changing dependencies in pyproject.toml
+    dir: cli
+    cmds:
+      - uv lock
 
   lint:
-    desc: Run all linters (compose, Dockerfile, shell, python, types)
+    desc: Run all linters (compose, then every pre-commit hook)
     cmds:
       - docker compose config --quiet
-      - hadolint images/counter/Dockerfile
-      - hadolint cli/Dockerfile
-      - shellcheck images/counter/counter.sh
-      - ruff check cli
-      - ruff format --check cli
-      - task: typecheck
+      - uvx pre-commit run --all-files
+
+  # Trivy runs from a pinned image and reads the local images through the
+  # engine socket, which gives it full engine access for the duration.
+  scan:
+    desc: Build both images and scan them with Trivy (fails on fixable HIGH/CRITICAL)
+    deps: [build]
+    cmds:
+      - for: [compose-counter, dockerctl:local]
+        cmd: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          {{.TRIVY_IMAGE}} image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 {{.ITEM}}
+
+  sbom:
+    desc: Build both images and write CycloneDX SBOMs to ./sbom/
+    deps: [build]
+    cmds:
+      - mkdir -p sbom
+      - for: [compose-counter, dockerctl:local]
+        cmd: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/sbom:/out"
+          {{.TRIVY_IMAGE}} image --format cyclonedx
+          --output "/out/{{.ITEM | replace ":" "-"}}.cdx.json" {{.ITEM}}
 
   cli:
     desc: 'Run the dockerctl CLI, e.g. `task cli -- images pull nginx:latest`'
     dir: cli
     cmds:
-      - python -m dockerctl {{.CLI_ARGS}}
+      - uv run --locked dockerctl {{.CLI_ARGS}}
