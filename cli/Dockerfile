@@ -7,8 +7,9 @@
 #                The venv embeds the interpreter version and libc, so the
 #                builder and the runtime must never drift apart. Keeping a
 #                single FROM line means a base bump moves both at once.
-#   1) builder : install the project (and typer) into an isolated venv.
-#                pip is removed from the venv once the install is done.
+#   1) builder : install the locked dependencies from uv.lock into an
+#                isolated venv (one cached layer), then the project itself.
+#                uv comes from its own pinned image and never ships.
 #   2) runtime : the same base carrying only the venv and the docker client,
 #                with the system pip removed, run by an unprivileged user.
 #
@@ -24,22 +25,31 @@
 # ---- Stage 0: shared base ---------------------------------------------------
 FROM python:3.13-alpine3.24@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a AS base
 
+# uv, pinned as its own stage so Dependabot tracks it like any other image.
+FROM ghcr.io/astral-sh/uv:0.11.32@sha256:df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c AS uv
+
 # ---- Stage 1: builder -------------------------------------------------------
 FROM base AS builder
 
-ENV PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+COPY --from=uv /uv /usr/local/bin/uv
 
-# Isolated venv we can copy wholesale into the runtime stage.
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# The venv goes straight to /opt/venv, built with the base interpreter (uv
+# must never download its own). uv venvs carry no pip.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_PYTHON=/usr/local/bin/python3 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_CACHE=1
 
 WORKDIR /src
-# Only what the build needs: metadata first, then the package itself.
-COPY pyproject.toml ./
+# Dependencies first, from the lockfile only: this layer is reused until
+# uv.lock or pyproject.toml change, whatever happens to the source.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
+# Then the package itself, installed as a regular (non-editable) wheel.
 COPY dockerctl/ dockerctl/
-RUN pip install . \
-    && pip uninstall --yes pip
+RUN uv sync --frozen --no-editable
 
 # ---- Stage 2: runtime -------------------------------------------------------
 FROM base AS runtime

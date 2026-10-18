@@ -26,8 +26,8 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  The Dockerfile still resolves dependencies at build time and CI installs ruff unpinned, ignoring cli/uv.lock.
-Action: Phase 2.5 (image from the lock) and 2.6 (CI from the lock).
+Issue:  CI installs ruff unpinned and the CLI from pyproject.toml, ignoring cli/uv.lock, and tests only Python 3.12.
+Action: Phase 2.6 (CI from the lock, 3.11 lint, 3.12 to 3.14 test matrix).
 Status: OPEN
 
 Issue:  Pre-commit revisions drift from CI (ruff v0.8.0, mypy v2.1.0, hadolint beta tag).
@@ -83,6 +83,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  The dockerctl image resolved dependencies with pip at build time and reinstalled them on every source change.
+Action: Builder copies uv from ghcr.io/astral-sh/uv:0.11.32 pinned by index digest df4cae8f, runs uv sync --frozen --no-install-project on pyproject.toml plus uv.lock (cached layer), then uv sync --frozen --no-editable after copying the package. Local simulation in the pinned base with uv 0.11.32 from PyPI: typer 0.27.3 from the lock, no pip, no pytest, dockerctl version prints 0.2.1 after /src is removed. hadolint clean. GHCR blob host is blocked here, so the real image build is verified in CI.
+Status: DONE
 
 Issue:  No lockfile; lower bound only dependencies; requires-python >=3.10 with 3.10 reaching end of life; Dependabot floor bumps #41, #61, #63, #64 open.
 Action: cli/uv.lock generated with uv 0.11.32 (23 packages, 434 sha256 hashes). Floors raised: typer>=0.27.3, mypy>=2.4.0, ruff>=0.17.0, setuptools>=84.0.0; requires-python >=3.11, ruff py311, mypy 3.11. Locked: ruff 0.17.1, mypy 2.4.0, typer 0.27.3. No code changes needed for the new linters. Local: uv lock --check resolved, ruff and format clean, mypy Success no issues in 10 files, pytest 45 passed on 3.11, 3.12, 3.13 and 3.14, coverage 100.00%.
