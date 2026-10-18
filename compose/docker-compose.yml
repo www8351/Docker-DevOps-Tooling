@@ -231,16 +231,19 @@ services:
           cpus: "0.50"
           memory: 256M
 
-  # Container-level metrics. Needs read-only views of the host and the
-  # docker state directory — that is its job; everything stays :ro.
+  # Container-level CPU and memory metrics, read straight from the host's
+  # cgroup tree. No docker.sock, no containerd socket, no host rootfs:
+  # cAdvisor's Docker integration needs both engine sockets, and either one
+  # is root-equivalent on the host. Without them containers are identified
+  # by cgroup id (Prometheus derives a short `container_id` label) instead of
+  # by name, and per-container network counters are not available.
+  # `cgroup: host` lets it see every container's cgroup on cgroup v2 hosts.
   cadvisor:
     profiles: ["observability"]
     image: gcr.io/cadvisor/cadvisor:v0.55.1@sha256:3de2bd5203120b866d74a9b283b2ffb8ec382fbf9dc321814700c6ea6f44ec57
     volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
       - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
+    cgroup: host
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
@@ -249,6 +252,7 @@ services:
       retries: 3
       start_period: 15s
     read_only: true
+    cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
     networks: [mgmt]

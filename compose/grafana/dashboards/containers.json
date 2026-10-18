@@ -1,6 +1,7 @@
 {
   "title": "Stack Containers",
   "uid": "stack-containers",
+  "description": "Containers are labelled by the short id that `docker ps` prints; cAdvisor runs without Docker API access, so names are not available.",
   "schemaVersion": 39,
   "editable": false,
   "timezone": "browser",
@@ -15,8 +16,8 @@
       "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
       "targets": [
         {
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"compose-.*\"}[2m]))",
-          "legendFormat": "{{name}}"
+          "expr": "sum by (container_id) (rate(container_cpu_usage_seconds_total{container_id!=\"\"}[2m]))",
+          "legendFormat": "{{container_id}}"
         }
       ]
     },
@@ -28,21 +29,21 @@
       "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
       "targets": [
         {
-          "expr": "container_memory_working_set_bytes{name=~\"compose-.*\"}",
-          "legendFormat": "{{name}}"
+          "expr": "container_memory_working_set_bytes{container_id!=\"\"}",
+          "legendFormat": "{{container_id}}"
         }
       ]
     },
     {
       "id": 3,
-      "title": "Network received per container",
+      "title": "nginx requests per second",
       "type": "timeseries",
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
-      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
       "targets": [
         {
-          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"compose-.*\"}[2m]))",
-          "legendFormat": "{{name}}"
+          "expr": "rate(nginx_http_requests_total[2m])",
+          "legendFormat": "requests"
         }
       ]
     },

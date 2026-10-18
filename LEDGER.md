@@ -16,10 +16,6 @@ Status: IN PROGRESS
 
 ### Security and correctness
 
-Issue:  cAdvisor mounts /var/run:/var/run:ro. A read-only bind does not block API calls, so cAdvisor holds full Docker API access. It also keeps all capabilities and runs as root.
-Action: Phase 1.9. Route cAdvisor through a GET only socket proxy (D1), drop the mount, cap_drop ALL.
-Status: OPEN
-
 Issue:  nginx-exporter joins both web and mgmt, bridging the public tier to the socket tier. Grafana and Prometheus share mgmt with portainer and cadvisor.
 Action: Phase 1.10. Split networks per D2.
 Status: OPEN
@@ -120,6 +116,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  cAdvisor mounted /var/run (docker.sock and the containerd socket), the host rootfs and /var/lib/docker, kept all capabilities, and CI waited a fixed 20 seconds before checking Prometheus targets.
+Action: cAdvisor now mounts only /sys:ro with cgroup: host and cap_drop ALL. Prometheus derives container_id from the cgroup path; the dashboard groups by it and swaps the per-container network panel for nginx requests per second. scripts/wait-prom-targets.sh polls targets instead of sleeping. stack-test asserts the cadvisor mounts are exactly /sys and that the nginx container has memory series under its container_id. Local run: targets 3 down [], mounts /sys, CapDrop [ALL], nginx memory series 1.
+Status: DONE
+
 Issue:  Compose image references sat in *_TAG variables Dependabot cannot follow; Portainer 2.27 and Grafana 12.3 no longer receive patches.
 Action: Commit 74fa41b. Every image written literally as tag@digest, *_TAG variables removed. portainer-ce 2.39.8 (LTS), grafana 12.4.13, prometheus v3.13.4, nginx-prometheus-exporter 1.5.3, httpd 2.4.69-alpine3.24, cadvisor v0.55.1. Local boot of the stack minus counter: all healthchecks pass, all endpoints 200, all Prometheus targets up.
 Status: DONE
@@ -168,12 +168,12 @@ Issue:  Where LEDGER.md lives.
 Action: Owner ruling 2026-10-18: create it at the repo root and commit it.
 Status: FINAL
 
-Issue:  D1 cAdvisor access to the Docker API.
-Action: GET only socket proxy (wollomatic/socket-proxy, digest pinned) allowing _ping, version, info, containers/json, containers/<id>/json. cAdvisor drops the /var/run mount and all capabilities. Rejected: removing the mount (3 of 4 dashboard panels need the name label), keeping it documented (full read-write API).
-Status: REVISIT
+Issue:  D1 cAdvisor access to the container engine. cAdvisor v0.55.1 registers its Docker factory only with both docker.sock and a containerd client (container/docker/factory.go calls containerd.Client unconditionally), and the containerd API is root-equivalent and cannot be filtered by a proxy.
+Action: Owner ruling 2026-10-18: no engine sockets at all. cAdvisor mounts only /sys read-only, uses cgroup: host, cap_drop ALL. Containers are identified by a short container_id derived from the cgroup path; per-container network counters are dropped. Rejected: GET only Docker proxy plus raw containerd socket (still root-equivalent), keeping the /var/run mount with documentation.
+Status: FINAL
 
 Issue:  D2 network layout.
-Action: web (nginx, httpd), nginx-status internal (nginx, exporter), metrics (prometheus, grafana, cadvisor, exporter), docker-api internal (proxy, cadvisor), mgmt (portainer). counter and dockerctl use network_mode none.
+Action: web (nginx, httpd), nginx-status internal (nginx, exporter), metrics (prometheus, grafana, cadvisor, exporter), mgmt (portainer). counter and dockerctl use network_mode none. The docker-api network was dropped with the socket proxy (see D1).
 Status: REVISIT
 
 Issue:  D3 bind address for published ports.
