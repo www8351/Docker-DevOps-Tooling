@@ -14,7 +14,7 @@ timeout="${2:-120}"
 deadline=$(($(date +%s) + timeout))
 
 check() {
-	curl -fsS "$url/api/v1/targets" | python3 -c '
+	curl -fsS -m 10 "$url/api/v1/targets" | python3 -c '
 import json, sys
 targets = json.load(sys.stdin)["data"]["activeTargets"]
 down = [t["labels"]["job"] for t in targets if t["health"] != "up"]

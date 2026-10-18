@@ -30,7 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Grafana (provisioned datasource + committed container dashboard), cAdvisor,
   and nginx-prometheus-exporter (via a non-host-mapped `stub_status`
   endpoint). CI boots the profile and fails if any Prometheus target is down.
-- Taskfile `secrets`, `obs:up` and `obs:down`; `up` now waits for health.
+- Taskfile `secrets` and `obs:up`; `up` now waits for health, and `down` /
+  `clean` also stop the observability profile and remove its volumes.
+- Dependabot now watches the compose image pins (`docker-compose`
+  ecosystem).
 - CI asserts loopback binding, fail-closed startup without secrets, working
   admin secrets, and per-container cAdvisor metrics;
   `scripts/wait-prom-targets.sh` replaces a fixed sleep.
@@ -45,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** the Grafana dashboard labels containers by short id instead of
   name, and the per-container network panel is replaced by nginx requests per
   second.
+- **Breaking:** the counter image writes a heartbeat file to `/tmp`; running it
+  with a read-only root filesystem now needs a writable `/tmp`
+  (`--tmpfs /tmp`).
 - nginx moves to `nginxinc/nginx-unprivileged` 1.30 stable on port 8080;
   Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
   nginx-prometheus-exporter to their latest patch releases.

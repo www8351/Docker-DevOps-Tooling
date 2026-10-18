@@ -1,6 +1,6 @@
 # Weekly dependency updates for every ecosystem in the repo.
-# Note: dependabot's docker ecosystem watches Dockerfiles only; the compose
-# image pins in compose/.env.example are maintained manually.
+# The docker ecosystem watches the Dockerfiles; docker-compose watches the
+# tag@digest image pins written literally in compose/docker-compose.yml.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -25,5 +25,10 @@ updates:
 
   - package-ecosystem: docker
     directory: "/cli"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker-compose
+    directory: "/compose"
     schedule:
       interval: weekly

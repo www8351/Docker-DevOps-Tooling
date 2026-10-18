@@ -16,10 +16,6 @@ Status: IN PROGRESS
 
 ### Security and correctness
 
-Issue:  Compose images are pinned literally by digest but not yet tracked by Dependabot.
-Action: Phase 2.12. Add the docker-compose ecosystem to .github/dependabot.yml.
-Status: OPEN
-
 Issue:  CLI passes positional arguments without a -- separator. containers deploy runs containers with none of the repo hardening.
 Action: Phase 3.3 and 3.4 (D12).
 Status: OPEN
@@ -103,6 +99,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Adversarial review of the phase 1 diff: docs said Dependabot bumps compose pins but no docker-compose ecosystem existed; the fail-closed CI step passed on any up failure and skipped Grafana; task down and clean left the observability containers and volumes running; wait-prom-targets.sh curl had no timeout; the counter heartbeat silently made --tmpfs /tmp mandatory under --read-only; docs understated docker.sock holders and the stub_status residual.
+Action: Added the Dependabot docker-compose ecosystem (moved forward from Phase 2.12). Fail-closed step now pulls first, checks portainer and grafana, requires the secret path in the error and no running container. down and clean pass --profile observability; obs:down removed. curl -m 10. README, SECURITY.md, CHANGELOG, Dockerfile comment and gen-secrets.sh header corrected. Local: step prints portainer refused and grafana refused, exit 0; with secrets present it fails with portainer started without its admin secret; task clean after obs:up leaves 0 containers and 0 volumes.
+Status: DONE
 
 Issue:  README claimed every long-running container was read-only and non-root and that the observability services shared the full baseline; pip was said never to ship; SECURITY.md listed only Portainer as a socket holder.
 Action: README intro (English and Hebrew), highlights, console sample (real CI output from run 39140747430), quick start, stack and observability tables (with runs as column), image suite, counter and dockerctl hardening notes, task list, CI section and troubleshooting rewritten to match the stack. SECURITY.md lists socket holders, root services, loopback defaults and the first volume caveat for secrets. CONTRIBUTING.md describes digest pins and secrets. CHANGELOG Unreleased gains Security, Added and breaking Changed entries.

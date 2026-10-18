@@ -42,8 +42,10 @@ RUN chmod 0555 /usr/local/bin/counter.sh
 
 USER app
 
-# The loop touches a heartbeat file in /tmp; a stale or missing file means
-# the loop has stopped. Compose and Kubernetes run the same probe command.
+# The loop touches a heartbeat file in /tmp (override with COUNTER_HEARTBEAT);
+# a stale or missing file means the loop has stopped. Compose runs the same
+# probe command. With a read-only root filesystem, /tmp must be writable
+# (e.g. --tmpfs /tmp), otherwise the loop exits on its first iteration.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
     CMD ["/usr/local/bin/counter.sh", "--healthcheck"]
 

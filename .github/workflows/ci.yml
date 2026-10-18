@@ -135,15 +135,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Admin passwords have no defaults: without the secret files the
-      # services that need them must refuse to start.
+      # services that need them must refuse to start, and for that reason
+      # (not a pull or network error).
       - name: Assert the stack fails closed without admin secrets
         run: |
           cp compose/.env.example compose/.env
-          if docker compose -f compose/docker-compose.yml up -d portainer; then
-            echo "portainer started without its admin secret" >&2
-            exit 1
-          fi
-          docker compose -f compose/docker-compose.yml down -v
+          compose="docker compose -f compose/docker-compose.yml --profile observability"
+          $compose pull --quiet portainer grafana
+          for svc in portainer grafana; do
+            if out=$($compose up -d --no-deps "$svc" 2>&1); then
+              echo "$svc started without its admin secret" >&2
+              exit 1
+            fi
+            echo "$out" | grep -q "secrets/${svc}_admin_password" \
+              || { echo "$svc failed for another reason: $out" >&2; exit 1; }
+            [ -z "$($compose ps -q "$svc")" ] || { echo "$svc container is running" >&2; exit 1; }
+            echo "$svc refused to start without compose/secrets/${svc}_admin_password"
+          done
+          $compose down -v
 
       - name: Boot the hardened stack + observability profile (healthchecks gate)
         run: |

@@ -120,7 +120,7 @@ flowchart TD
 .
 ├── compose/
 │   ├── docker-compose.yml   # declarative stack (nginx, httpd, portainer, counter)
-│   └── .env.example         # ports + image tags  →  copy to .env
+│   └── .env.example         # bind addresses + ports  →  copy to .env
 ├── images/
 │   └── counter/             # custom image, built by compose
 │       ├── Dockerfile       # multi-stage, hardened, Alpine, non-root
@@ -194,7 +194,8 @@ Every service runs with a **read-only root filesystem** (tmpfs for known write p
 `cap_drop: ALL` (only httpd re-adds capabilities), `no-new-privileges`, CPU/memory limits,
 and bounded json-file logging. Published ports bind to `WEB_BIND_ADDR` (nginx, httpd) and
 `ADMIN_BIND_ADDR` (portainer, prometheus, grafana), both `127.0.0.1` by default. Portainer is
-the only service holding docker.sock, alone on the `mgmt` network. Admin passwords for
+the only service in the default stack holding docker.sock, alone on the `mgmt` network (the
+`dockerctl` tool gets it only when you run it with the socket mounted). Admin passwords for
 Portainer and Grafana are read from `compose/secrets/` (created by `task secrets`); there is
 no default password, so `up` fails if the files are missing. Both apps only read the secret
 when their data volume is first created. The alpine tags are load-bearing: busybox `wget`
@@ -269,7 +270,8 @@ script uses**. `sshpass` and `tcpdump` alone are exactly what an image scanner f
   Alpine's busybox `ash`, so no `bash` package is installed at all.
 - **A healthcheck that can fail** the loop touches a heartbeat file in `/tmp` every iteration and
   `counter.sh --healthcheck` fails once it is older than 10 seconds. The image declares it as its
-  `HEALTHCHECK`, and compose runs the same command.
+  `HEALTHCHECK`, and compose runs the same command. Running it with `--read-only` therefore needs
+  a writable `/tmp` (`--tmpfs /tmp`, as compose does).
 
 ### 🐍 `dockerctl` multi-stage Python, no toolchain in the runtime
 
@@ -400,8 +402,8 @@ every action **pinned to a commit SHA** and per-ref concurrency:
   (`linux/amd64` + `linux/arm64`) with BuildKit provenance and SBOM attestations
 - signs each image with **cosign** (keyless, OIDC)
 
-[Dependabot](.github/dependabot.yml) keeps GitHub Actions, pip, and both
-Dockerfiles updated weekly.
+[Dependabot](.github/dependabot.yml) keeps GitHub Actions, pip, both
+Dockerfiles, and the digest-pinned compose images updated weekly.
 
 ---
 

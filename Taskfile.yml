@@ -33,15 +33,12 @@ tasks:
     cmds:
       - docker compose --profile observability up -d --wait
 
-  obs:down:
-    desc: Stop the stack including the observability profile
+  # down and clean name the observability profile so its containers and
+  # volumes go too; without it compose leaves profiled services running.
+  down:
+    desc: Stop the stack (observability profile included) and remove containers
     cmds:
       - docker compose --profile observability down
-
-  down:
-    desc: Stop the stack and remove containers
-    cmds:
-      - docker compose down
 
   build:
     desc: Build all images in the suite (counter + the profiled dockerctl CLI)
@@ -59,9 +56,9 @@ tasks:
       - docker compose logs -f
 
   clean:
-    desc: Stop the stack and remove its volumes
+    desc: Stop the stack (observability profile included) and remove its volumes
     cmds:
-      - docker compose down --volumes
+      - docker compose --profile observability down --volumes
 
   test:
     desc: Run the dockerctl unit test suite

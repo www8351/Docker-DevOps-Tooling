@@ -55,7 +55,10 @@ cosign verify \
   an existing volume keeps its old password until you reset it.
 - Networks are split by role: `web` (nginx, httpd), internal
   `nginx-status`, `metrics` (prometheus, grafana, cadvisor, exporter) and
-  `mgmt` (portainer). counter and dockerctl run without a network.
+  `mgmt` (portainer). counter and dockerctl run without a network. nginx's
+  `stub_status` listener (port 8082, never published) is also reachable from
+  httpd on the shared `web` network; it exposes only connection and request
+  counters.
 - Services that still run as root inside their container: httpd's master
   process, Portainer, and cAdvisor (with no capabilities and only `/sys`
   mounted read-only). Everything else runs as a fixed non-root user.

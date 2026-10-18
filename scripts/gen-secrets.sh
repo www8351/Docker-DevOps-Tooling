@@ -3,7 +3,11 @@
 #
 # Create the admin password files the compose stack mounts as secrets.
 # Existing files are left alone, so re-running never rotates a password
-# behind your back. Delete a file to have it regenerated.
+# behind your back. Delete a file to have it regenerated, but note that
+# Grafana and Portainer read the secret only when their data volume is
+# first created: with an existing volume, a regenerated file no longer
+# matches the stored password. Run `task clean` first, or reset the
+# password in the app.
 #
 # Usage: scripts/gen-secrets.sh [secrets-dir]   (default: compose/secrets)
 #
