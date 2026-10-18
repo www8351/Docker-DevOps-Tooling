@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import typer
 
-from ._docker import DockerError, run
+from ._cli import docker_errors
+from ._docker import run
 
 app = typer.Typer(help="Manage Docker images.")
 
@@ -17,11 +18,8 @@ def list_images(
     args = ["images"]
     if json_:
         args += ["--format", "{{json .}}"]
-    try:
+    with docker_errors():
         typer.echo(run(*args, capture=True), nl=False)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
 
 
 @app.command()
@@ -30,22 +28,16 @@ def build(
     tag: str = typer.Option(..., "--tag", "-t", help="Image tag, e.g. counter:latest"),
 ) -> None:
     """Build an image from a Dockerfile context."""
-    try:
+    with docker_errors():
         run("build", "-t", tag, path)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Built {tag} from {path}")
 
 
 @app.command()
 def pull(name: str = typer.Argument(..., help="Image reference, e.g. nginx:latest")) -> None:
     """Pull an image from a registry."""
-    try:
+    with docker_errors():
         run("pull", name)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"OK: pulled {name}")
 
 
@@ -55,11 +47,8 @@ def tag(
     target: str = typer.Argument(..., help="Target reference, e.g. ghcr.io/acme/counter:1.0"),
 ) -> None:
     """Tag an image with a new reference."""
-    try:
+    with docker_errors():
         run("tag", source, target)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Tagged {source} as {target}")
 
 
@@ -68,11 +57,8 @@ def push(
     name: str = typer.Argument(..., help="Image reference, e.g. ghcr.io/acme/counter:1.0"),
 ) -> None:
     """Push an image to a registry."""
-    try:
+    with docker_errors():
         run("push", name)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"OK: pushed {name}")
 
 
@@ -86,9 +72,6 @@ def remove(
     if force:
         args.append("--force")
     args.append(image_id)
-    try:
+    with docker_errors():
         run(*args)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Removed image {image_id}")

@@ -10,7 +10,8 @@ from typing import Annotated
 
 import typer
 
-from ._docker import DockerError, run
+from ._cli import docker_errors
+from ._docker import run
 
 app = typer.Typer(help="Manage Docker containers.")
 
@@ -26,11 +27,8 @@ def list_containers(
         args.append("-a")
     if json_:
         args += ["--format", "{{json .}}"]
-    try:
+    with docker_errors():
         typer.echo(run(*args, capture=True), nl=False)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
 
 
 @app.command("rm")
@@ -43,11 +41,8 @@ def remove(
     if force:
         args.append("--force")
     args.append(container_id)
-    try:
+    with docker_errors():
         run(*args)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Removed container {container_id}")
 
 
@@ -58,11 +53,8 @@ def deploy(
     port: str = typer.Option(..., "--port", "-p", help="Port mapping host:container, e.g. 8080:80"),
 ) -> None:
     """Run a detached container with a name and port mapping."""
-    try:
+    with docker_errors():
         run("run", "-d", "--name", name, "-p", port, image)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Deployed {name} from {image} on {port}")
 
 
@@ -77,32 +69,23 @@ def logs(
     if follow:
         args.append("--follow")
     args.append(container_id)
-    try:
+    with docker_errors():
         run(*args)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
 
 
 @app.command()
 def stop(container_id: str = typer.Argument(..., help="Container ID or name")) -> None:
     """Stop a running container."""
-    try:
+    with docker_errors():
         run("stop", container_id)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Stopped {container_id}")
 
 
 @app.command()
 def start(container_id: str = typer.Argument(..., help="Container ID or name")) -> None:
     """Start a stopped container."""
-    try:
+    with docker_errors():
         run("start", container_id)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Started {container_id}")
 
 
@@ -112,11 +95,8 @@ def exec_(
     command: Annotated[list[str], typer.Argument(help="Command to run inside the container")],
 ) -> None:
     """Run a command inside a running container (non-interactive)."""
-    try:
+    with docker_errors():
         run("exec", container_id, *command)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
 
 
 @app.command()
@@ -131,11 +111,8 @@ def restart(
     if time is not None:
         args += ["--time", str(time)]
     args.append(container_id)
-    try:
+    with docker_errors():
         run(*args)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
     typer.echo(f"Restarted {container_id}")
 
 
@@ -152,11 +129,8 @@ def stats(
         args += ["--format", "{{json .}}"]
     if container_ids:
         args += list(container_ids)
-    try:
+    with docker_errors():
         typer.echo(run(*args, capture=True), nl=False)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
 
 
 @app.command()
@@ -169,8 +143,5 @@ def inspect(
     if json_:
         args += ["--format", "{{json .}}"]
     args.append(container_id)
-    try:
+    with docker_errors():
         typer.echo(run(*args, capture=True), nl=False)
-    except DockerError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc

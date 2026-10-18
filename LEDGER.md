@@ -24,10 +24,6 @@ Status: OPEN
 
 ### Code quality
 
-Issue:  The same try, DockerError, echo, Exit(1) block is copied 16 times across containers.py and images.py. Test helpers are duplicated with no conftest.py.
-Action: Phase 3.1 and 3.2.
-Status: OPEN
-
 ### Documentation
 
 Issue:  README layout tree, CLI command counts and remaining tables predate this roadmap.
@@ -59,6 +55,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  The same try, DockerError, echo to stderr, Exit(1) block was copied 16 times across containers.py (10) and images.py (6).
+Action: New cli/dockerctl/_cli.py with a docker_errors() context manager; every command body now runs under it. Behaviour unchanged. Local: ruff clean, mypy Success no issues in 12 source files, 45 passed, coverage 100.00%.
+Status: DONE
 
 Issue:  Test helpers (_record_calls and boom) were copied into test_containers.py and test_images.py with no conftest.py.
 Action: cli/tests/conftest.py provides runner, record_calls(module, returns) and docker_fails(module, message) fixtures with RecordCalls and DockerFails type aliases; both test modules use them with full annotations. Local: ruff clean, mypy Success no issues in 11 source files, 45 passed, coverage 100.00%.
