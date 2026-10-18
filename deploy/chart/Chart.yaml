@@ -1,0 +1,22 @@
+apiVersion: v2
+name: devops-stack
+description: >-
+  The hardened web tier of docker-devops-tooling on Kubernetes: nginx, Apache
+  httpd and the counter demo, each non-root with a read-only root filesystem,
+  no capabilities and the RuntimeDefault seccomp profile, so the release
+  passes the restricted Pod Security Standard.
+type: application
+# Chart version, bumped on any change to the chart itself.
+version: 0.1.0
+# The release whose counter image the chart runs by default
+# (ghcr.io/www8351/docker-devops-tooling/counter:<appVersion>).
+appVersion: "0.3.0"
+kubeVersion: ">=1.29.0-0"
+home: https://github.com/www8351/Docker-DevOps-Tooling
+sources:
+  - https://github.com/www8351/Docker-DevOps-Tooling
+keywords:
+  - nginx
+  - httpd
+  - hardened
+  - pod-security

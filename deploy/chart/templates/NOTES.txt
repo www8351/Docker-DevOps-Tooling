@@ -1,0 +1,25 @@
+{{ .Chart.Name }} {{ .Chart.Version }} is installed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+Every pod runs non-root with a read-only root filesystem, no capabilities and
+the RuntimeDefault seccomp profile, so the namespace can enforce the
+restricted Pod Security Standard:
+
+  kubectl label namespace {{ .Release.Namespace }} pod-security.kubernetes.io/enforce=restricted
+
+{{- if .Values.nginx.enabled }}
+
+nginx:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "devops-stack.componentName" (dict "root" . "component" "nginx") }} 8080:{{ .Values.nginx.service.port }}
+{{- end }}
+{{- if .Values.httpd.enabled }}
+
+httpd:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "devops-stack.componentName" (dict "root" . "component" "httpd") }} 8081:{{ .Values.httpd.service.port }}
+{{- end }}
+{{- if .Values.counter.enabled }}
+
+counter:
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "devops-stack.componentName" (dict "root" . "component" "counter") }}
+{{- end }}
+
+Check the release with: helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --logs

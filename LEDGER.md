@@ -52,6 +52,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  #12 Helm chart for nginx, httpd and counter (Phase 4.1).
+Action: New deploy/chart (devops-stack 0.1.0, appVersion 0.3.0, kubeVersion >=1.29): Deployments for nginx (uid 101), httpd (uid 82, files/httpd.conf from a ConfigMap, checksum annotation) and counter (uid 10001, exec probes on counter.sh --healthcheck); ClusterIP Services on 8080; every pod runAsNonRoot with seccomp RuntimeDefault, readOnlyRootFilesystem, allowPrivilegeEscalation false, capabilities drop ALL, a 16Mi in-memory emptyDir on /tmp, limits mirroring compose; one ServiceAccount with no token; NetworkPolicies default-deny, web ingress on 8080, test pod egress to the web pods and kube-dns; a helm test pod that fetches both services and, with tests.checkNetworkPolicy, requires the Kubernetes API to be unreachable; values.schema.json with additionalProperties false. Local: helm lint --strict 1 chart(s) linted, 0 chart(s) failed; kubeconform -strict on the rendered chart Valid: 11, Invalid: 0; the schema rejects nginx.replica (additional properties 'replica' not allowed), httpd.runAsUser=0 (minimum: got 0, want 1) and a non sha256 digest.
+Status: DONE
+
 Issue:  counter.sh ignored SIGTERM when it ran as PID 1, as it will in a Kubernetes pod (compose hides this with init: true), so every stop waited out the grace period and ended in SIGKILL.
 Action: counter.sh traps INT and TERM and exits 0. Local, alpine 3.24 as 10001 with the script mounted and no init: docker stop took 0.45s with exit 0, against 5.17s and exit 137 for the previous script; --healthcheck still passes; shellcheck clean.
 Status: DONE
@@ -302,6 +306,14 @@ Status: REVISIT
 
 Issue:  D13 compose plugin inside the dockerctl image.
 Action: Not added. dockerctl compose exits 1 with a clear message inside the image.
+Status: REVISIT
+
+Issue:  D14 chart image references.
+Action: values.yaml pins nginx and httpd to the same tag and digest as compose/docker-compose.yml, and CI fails if they differ. Dependabot keeps bumping compose; a compose bump goes red until the chart values follow in the same PR.
+Status: REVISIT
+
+Issue:  D15 counter image in the chart.
+Action: Defaults to ghcr.io/www8351/docker-devops-tooling/counter at the chart appVersion (0.3.0, set ahead of the release because the 0.2.x images lack counter.sh --healthcheck). CI loads a local build into kind with pullPolicy Never. The release guard should later assert appVersion matches the tag.
 Status: REVISIT
 
 Issue:  Alertmanager and Loki in the observability profile.

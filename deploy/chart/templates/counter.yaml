@@ -1,0 +1,52 @@
+{{- if .Values.counter.enabled }}
+{{- $ctx := dict "root" . "component" "counter" "values" .Values.counter }}
+# The counter loop has no listener; both probes run the image's own
+# heartbeat check, which fails when the loop stops touching /tmp.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "devops-stack.componentName" $ctx }}
+  labels:
+    {{- include "devops-stack.componentLabels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.counter.replicas }}
+  selector:
+    matchLabels:
+      {{- include "devops-stack.componentSelectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "devops-stack.componentLabels" $ctx | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "devops-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        {{- include "devops-stack.podSecurityContext" .Values.counter | nindent 8 }}
+      containers:
+        - name: counter
+          image: {{ include "devops-stack.image" (dict "root" . "image" .Values.counter.image) | quote }}
+          imagePullPolicy: {{ .Values.counter.image.pullPolicy }}
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/counter.sh", "--healthcheck"]
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/counter.sh", "--healthcheck"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.counter.resources | nindent 12 }}
+          securityContext:
+            {{- include "devops-stack.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        {{- include "devops-stack.tmpVolume" . | nindent 8 }}
+{{- end }}

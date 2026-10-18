@@ -1,0 +1,95 @@
+# Default values for devops-stack.
+#
+# Every pod runs non-root with a read-only root filesystem, all capabilities
+# dropped, no privilege escalation and the RuntimeDefault seccomp profile, so
+# the release is admitted by a namespace that enforces the restricted Pod
+# Security Standard. Those settings are fixed in the templates; the values
+# below cover images, sizing and exposure.
+#
+# nginx and httpd use the same images, pinned by tag and digest, as
+# compose/docker-compose.yml; CI fails if the two drift.
+
+nginx:
+  enabled: true
+  replicas: 1
+  image:
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.30.6-alpine3.24
+    digest: sha256:782bb89768cc87b7f95c18b95baa1af250e5d451f26794f59363540161147c01
+    pullPolicy: IfNotPresent
+  # UID and GID the image is built for (the nginx user).
+  runAsUser: 101
+  runAsGroup: 101
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+httpd:
+  enabled: true
+  replicas: 1
+  image:
+    repository: httpd
+    tag: 2.4.69-alpine3.24
+    digest: sha256:3440c39d8d6f54fa9ad2549e5a60c19ddd435faadc29c1ad28aa795f71888889
+    pullPolicy: IfNotPresent
+  # www-data in the Alpine image. The chart mounts files/httpd.conf, which
+  # listens on 8080 and keeps its runtime files in /tmp.
+  runAsUser: 82
+  runAsGroup: 82
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+counter:
+  enabled: true
+  replicas: 1
+  image:
+    repository: ghcr.io/www8351/docker-devops-tooling/counter
+    # Empty means the chart's appVersion. For a local build loaded into kind,
+    # set repository and tag to it and pullPolicy to Never.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  runAsUser: 10001
+  runAsGroup: 10001
+  resources:
+    requests:
+      cpu: 10m
+      memory: 8Mi
+    limits:
+      cpu: 100m
+      memory: 32Mi
+
+# One service account for the release, with no API token mounted: none of
+# the pods talk to the Kubernetes API.
+serviceAccount:
+  create: true
+  # Used as is when create is false; generated from the release otherwise.
+  name: ""
+
+# Deny all traffic to and from the release's pods, then allow only ingress to
+# nginx and httpd on 8080 (and, for helm test, the test pod's egress to them
+# and to cluster DNS). Needs a CNI that enforces NetworkPolicy.
+networkPolicy:
+  enabled: true
+
+# `helm test` runs one pod that fetches both web services.
+tests:
+  # Also assert that the test pod cannot reach the Kubernetes API, which
+  # proves the NetworkPolicy is enforced. Leave off on a CNI without
+  # NetworkPolicy support.
+  checkNetworkPolicy: false
