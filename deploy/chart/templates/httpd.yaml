@@ -1,0 +1,14 @@
+{{- if .Values.httpd.enabled }}
+{{- $config := .Files.Get "files/httpd.conf" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "devops-stack.componentName" (dict "root" . "component" "httpd") }}
+  labels:
+    {{- include "devops-stack.componentLabels" (dict "root" . "component" "httpd") | nindent 4 }}
+data:
+  httpd.conf: |
+    {{- $config | nindent 4 }}
+---
+{{ include "devops-stack.web" (dict "root" . "component" "httpd" "values" .Values.httpd "config" $config) }}
+{{- end }}

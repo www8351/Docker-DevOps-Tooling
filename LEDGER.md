@@ -8,15 +8,19 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 3, CLI correctness and compose group
+### Next action: Phase 4, Helm chart on kind
 
-Issue:  Phase 3 of the 0.3.0 roadmap (Track A code plus #14) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 4d99cfc.
-Action: Ship commits 3.1 to 3.7, open a draft PR, drive CI green, stop for owner merge.
+Issue:  Phase 4 of the 0.3.0 roadmap (#12) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 8aa5aa9.
+Action: Ship commits 4.1 to 4.5, open a draft PR, drive CI green, stop for owner merge.
 Status: IN PROGRESS
 
 ### Security and correctness
 
 ### CI and reproducibility
+
+Issue:  Every astral-sh/setup-uv step resolves the latest uv (0.13.1 in the Phase 3 runs) while cli/Dockerfile pins uv 0.11.32, so CI and the image can drift.
+Action: Pin a uv version in the setup-uv steps, or record why not. Raised in the PR #77 body; not yet decided.
+Status: OPEN
 
 ### Code quality
 
@@ -47,6 +51,42 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  helm failed on 8fbd584 at the last assertion: "reached the Kubernetes API: the NetworkPolicy is not enforced". Everything before it passed: the namespace refused a bare pod, the chart installed under enforce=restricted, all three Deployments rolled out, and helm test printed nginx: 200 and httpd: 200. The check was wrong, not the policy: traffic between a pod and its own node is always allowed by the NetworkPolicy model, and on a one-node kind cluster the API server runs on that node.
+Action: Dropped tests.checkNetworkPolicy and the API probe from the chart (values, schema, test pod). CI instead execs into nginx, which may open no connection: a fetch of its own page must succeed (wget and exec work), and a fetch of the httpd pod IP on 8080, the pod the test pod just reached, must fail with a network error (timed out, refused, no route or unreachable). README and Taskfile updated. Local: actionlint clean, zizmor no findings, helm lint --strict passes, kubeconform Valid: 11; busybox wget -T 5 against a DROP rule printed "wget: download timed out" with exit 1 after 5s; the step logic passes on timed out and refused, and fails on success and on exec errors.
+Status: DONE
+
+Issue:  README and CHANGELOG do not describe the chart (Phase 4.5).
+Action: README gains a Kubernetes (Helm chart) section (hardening, shared httpd.conf and images, NetworkPolicy, install and helm test commands, local counter override, chart tasks), a helm job paragraph under CI, deploy/chart and compose/httpd in the layout, a Helm, kind and kubectl requirement row, and the chart tasks in the task list; CHANGELOG Unreleased gains the chart and the helm job under Added. Local: helm v3.22.1 lint --strict passes and, at --kube-version 1.37.0, renders the same objects as helm v4.3.1 apart from blank lines (kubeconform Valid: 11); the README states Helm 3 or 4 on that basis.
+Status: DONE
+
+Issue:  No local entry points for the chart (Phase 4.4).
+Action: Taskfile gains chart:lint (helm lint --strict), chart:template, and kind:test, which mirrors the CI helm job on a throwaway cluster (create, build and kind load counter:local, restricted namespace, helm install --wait, helm test --logs, deferred cluster delete). Local: task --list shows all three; task chart:lint 1 chart(s) linted, 0 chart(s) failed; task chart:template renders 11 objects; task --dry kind:test prints the expected command sequence. kind:test itself cannot run in this container (see the tooling entry).
+Status: DONE
+
+Issue:  The chart needs a real cluster check under the restricted Pod Security Standard (Phase 4.2).
+Action: New CI job helm: azure/setup-helm v5.0.1 (9bc31f4e) with helm v4.3.1; asserts compose/httpd/httpd.conf equals deploy/chart/files/httpd.conf and that the rendered nginx and httpd images equal the compose ones (D14); helm lint --strict; helm/kind-action v1.15.1 (1544676c, kind v0.33.0, kindnetd enforces NetworkPolicy); builds counter and kind loads it; creates namespace stack labelled enforce=restricted and first proves enforcement (a bare pod is refused with violates PodSecurity "restricted"); helm install --wait with the local counter and tests.checkNetworkPolicy=true; rollout status for all three Deployments; helm test --logs; diagnostics on failure. publish now also needs helm. Local: actionlint clean, zizmor no findings; the sync step printed both images and exited 0, and exited 1 after changing the nginx tag in values.yaml or appending to the chart httpd.conf. kind itself runs in CI only.
+Status: DONE
+
+Issue:  #12 Helm chart for nginx, httpd and counter (Phase 4.1).
+Action: New deploy/chart (devops-stack 0.1.0, appVersion 0.3.0, kubeVersion >=1.29): Deployments for nginx (uid 101), httpd (uid 82, files/httpd.conf from a ConfigMap, checksum annotation) and counter (uid 10001, exec probes on counter.sh --healthcheck); ClusterIP Services on 8080; every pod runAsNonRoot with seccomp RuntimeDefault, readOnlyRootFilesystem, allowPrivilegeEscalation false, capabilities drop ALL, a 16Mi in-memory emptyDir on /tmp, limits mirroring compose; one ServiceAccount with no token; NetworkPolicies default-deny, web ingress on 8080, test pod egress to the web pods and kube-dns; a helm test pod that fetches both services and, with tests.checkNetworkPolicy, requires the Kubernetes API to be unreachable; values.schema.json with additionalProperties false. Local: helm lint --strict 1 chart(s) linted, 0 chart(s) failed; kubeconform -strict on the rendered chart Valid: 11, Invalid: 0; the schema rejects nginx.replica (additional properties 'replica' not allowed), httpd.runAsUser=0 (minimum: got 0, want 1) and a non sha256 digest.
+Status: DONE
+
+Issue:  counter.sh ignored SIGTERM when it ran as PID 1, as it will in a Kubernetes pod (compose hides this with init: true), so every stop waited out the grace period and ended in SIGKILL.
+Action: counter.sh traps INT and TERM and exits 0. Local, alpine 3.24 as 10001 with the script mounted and no init: docker stop took 0.45s with exit 0, against 5.17s and exit 137 for the previous script; --healthcheck still passes; shellcheck clean.
+Status: DONE
+
+Issue:  compose httpd still ran its master as root and re-added CHOWN, SETGID, SETUID and NET_BIND_SERVICE to bind port 80 (D9).
+Action: New compose/httpd/httpd.conf (Listen 8080, pid and mutexes in /tmp, logs to stdout and stderr, ServerTokens Prod, TraceEnable Off, nosniff header, root directory denied); compose runs httpd as 82:82 with it mounted over the image config, only /tmp on tmpfs and no cap_add. README and SECURITY.md updated. Local: docker compose up --wait reported compose-httpd-1 Healthy, user=82:82 ro=true capadd=[] capdrop=[ALL], every process www-data, :8081 returned 200; under docker run the same config answered TRACE with 405 and a path outside htdocs with 404.
+Status: DONE
+
+Issue:  Phase 3 PR #77.
+Action: Owner merged PR #77 into main as 8aa5aa9 (head 87f7526, all 14 run checks green, publish skipped). main also carries 09e8956, Dependabot PR #76 (actions/upload-artifact 7.0.1 to 7.0.2). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease.
+Status: DONE
+
+Issue:  Phase 4 needs helm, kind, kubectl and kubeconform locally; GitHub release downloads and get.helm.sh are blocked here.
+Action: Installed through the Go module proxy: helm v4.3.1, kind v0.33.0, kubeconform v0.8.0; kubectl v1.37.1 from dl.k8s.io with its sha256 verified. kind cannot run in this container: the host is cgroup v1, and even with failCgroupV1 false runc fails inside the node ("can't get final child's PID from pipe: EOF"). The chart is validated locally with helm lint, helm template and kubeconform, and each container is run under docker with the chart's user, read-only root and dropped capabilities; the kind install runs in CI only.
+Status: DONE
 
 Issue:  lint, test (3.12), test (3.13) and test (3.14) failed on 80ab2c7: 5 failed, 70 passed. The new --no-harden usage error test looked for --no-harden in stderr, but typer forces rich colour when GITHUB_ACTIONS is set, and the ANSI codes split the flag name ("\x1b[1;33mUsage: ..." in the log). Not visible locally without that variable.
 Action: Reproduced with GITHUB_ACTIONS=true (same 5 failed). Added plain() to tests/conftest.py to drop ANSI codes; the test now asserts "Invalid value for '--no-harden'" and "cannot be combined with <flag>" on the plain text. Local: 75 passed with and without GITHUB_ACTIONS=true (also at COLUMNS=40), coverage 100.00%, ruff and mypy clean.
@@ -282,6 +322,14 @@ Status: REVISIT
 
 Issue:  D13 compose plugin inside the dockerctl image.
 Action: Not added. dockerctl compose exits 1 with a clear message inside the image.
+Status: REVISIT
+
+Issue:  D14 chart image references.
+Action: values.yaml pins nginx and httpd to the same tag and digest as compose/docker-compose.yml, and CI fails if they differ. Dependabot keeps bumping compose; a compose bump goes red until the chart values follow in the same PR.
+Status: REVISIT
+
+Issue:  D15 counter image in the chart.
+Action: Defaults to ghcr.io/www8351/docker-devops-tooling/counter at the chart appVersion (0.3.0, set ahead of the release because the 0.2.x images lack counter.sh --healthcheck). CI loads a local build into kind with pullPolicy Never. The release guard should later assert appVersion matches the tag.
 Status: REVISIT
 
 Issue:  Alertmanager and Loki in the observability profile.

@@ -55,7 +55,7 @@ default, and admin passwords come from **generated secrets**.
 $ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
 NAMES                 IMAGE                                           STATUS                    PORTS
 compose-counter-1     compose-counter                                 Up 28 seconds (healthy)
-compose-httpd-1       httpd:2.4.69-alpine3.24                         Up 28 seconds (healthy)   127.0.0.1:8081->80/tcp
+compose-httpd-1       httpd:2.4.69-alpine3.24                         Up 28 seconds (healthy)   127.0.0.1:8081->8080/tcp
 compose-nginx-1       nginxinc/nginx-unprivileged:1.30.6-alpine3.24   Up 28 seconds (healthy)   127.0.0.1:8080->8080/tcp
 compose-portainer-1   portainer/portainer-ce:2.39.8                   Up 28 seconds             8000/tcp, 9443/tcp, 127.0.0.1:9000->9000/tcp
 ```
@@ -120,7 +120,9 @@ flowchart TD
 .
 ├── compose/
 │   ├── docker-compose.yml   # declarative stack (nginx, httpd, portainer, counter)
+│   ├── httpd/httpd.conf     # unprivileged httpd config, shared with the chart
 │   └── .env.example         # bind addresses + ports  →  copy to .env
+├── deploy/chart/            # Helm chart for the web tier (restricted PSS)
 ├── images/
 │   └── counter/             # custom image, built by compose
 │       ├── Dockerfile       # multi-stage, hardened, Alpine, non-root
@@ -150,6 +152,7 @@ flowchart TD
 | Python ≥ 3.11 | run `dockerctl` | <https://www.python.org/> |
 | uv (recommended) | locked dev environment, pre-commit hooks | <https://docs.astral.sh/uv/> |
 | Task (optional) | task runner | <https://taskfile.dev/installation/> |
+| Helm 3 or 4, kind, kubectl (optional) | install and test the Kubernetes chart | <https://helm.sh/docs/intro/install/> |
 
 > Without Task installed, every command has a raw `docker compose` equivalent shown below.
 
@@ -187,12 +190,12 @@ file itself, where Dependabot can bump it.
 | Service | Image | Default port | Health | Network | Runs as | Notes |
 |---------|-------|--------------|--------|---------|---------|-------|
 | `nginx` | `nginxinc/nginx-unprivileged:1.30.6-alpine3.24` | `127.0.0.1:8080` | `wget` probe | `web`, `nginx-status` | UID 101 | serves `web/` read-only, no capabilities |
-| `httpd` | `httpd:2.4.69-alpine3.24` | `127.0.0.1:8081` | `wget` probe | `web` | root master, `daemon` workers | re-adds the 4 capabilities port 80 needs |
+| `httpd` | `httpd:2.4.69-alpine3.24` | `127.0.0.1:8081` | `wget` probe | `web` | UID 82 (`www-data`) | [`compose/httpd/httpd.conf`](compose/httpd/httpd.conf) on port 8080, no capabilities |
 | `portainer` | `portainer/portainer-ce:2.39.8` | `127.0.0.1:9000` | none (scratch image) | `mgmt` | root | Docker UI; admin from a generated secret |
 | `counter` | built from `images/counter/` | none | heartbeat probe | none | UID 10001 | incrementing counter; hardened Alpine (see [suite](#-devops-tooling--containerization-suite)) |
 
 Every service runs with a **read-only root filesystem** (tmpfs for known write paths),
-`cap_drop: ALL` (only httpd re-adds capabilities), `no-new-privileges`, CPU/memory limits,
+`cap_drop: ALL` with nothing added back, `no-new-privileges`, CPU/memory limits,
 and bounded json-file logging. Published ports bind to `WEB_BIND_ADDR` (nginx, httpd) and
 `ADMIN_BIND_ADDR` (portainer, prometheus, grafana), both `127.0.0.1` by default. Portainer is
 the only service in the default stack holding docker.sock, alone on the `mgmt` network (the
@@ -232,6 +235,42 @@ task pull     # docker compose pull
 task logs     # docker compose logs -f
 task clean    # down + remove volumes
 ```
+
+---
+
+## ☸️ Kubernetes (Helm chart)
+
+[`deploy/chart`](deploy/chart) runs the web tier, nginx, httpd and counter, on Kubernetes with
+the same hardening as compose. Every pod runs as its image's fixed non-root user (nginx 101,
+httpd 82, counter 10001) with the `RuntimeDefault` seccomp profile, a read-only root filesystem,
+`allowPrivilegeEscalation: false`, every capability dropped and a small in-memory `/tmp` as the
+only writable path, so a namespace can enforce the **restricted Pod Security Standard**. httpd
+mounts the same [`httpd.conf`](compose/httpd/httpd.conf) compose uses, and nginx and httpd run the
+same tag and digest as compose; CI fails if either drifts.
+
+The service account mounts no API token, and NetworkPolicies deny all traffic to and from the
+release except HTTP on port 8080 into nginx and httpd. `helm test` fetches both services through
+their Services.
+
+```bash
+kubectl create namespace stack
+kubectl label namespace stack pod-security.kubernetes.io/enforce=restricted
+helm install devops-stack deploy/chart -n stack --wait
+helm test devops-stack -n stack --logs
+kubectl -n stack port-forward svc/devops-stack-nginx 8080:8080
+```
+
+The counter image defaults to `ghcr.io/www8351/docker-devops-tooling/counter` at the chart's
+`appVersion`. To run a local build instead, load it into the cluster and point the chart at it:
+`--set counter.image.repository=counter,counter.image.tag=local,counter.image.pullPolicy=Never`.
+[`values.yaml`](deploy/chart/values.yaml) documents every setting, and
+[`values.schema.json`](deploy/chart/values.schema.json) rejects unknown keys and a root UID.
+
+| Task | What it does |
+|------|--------------|
+| `task chart:lint` | `helm lint --strict` against the values schema |
+| `task chart:template` | render the chart with its defaults |
+| `task kind:test` | the CI `helm` job on a throwaway kind cluster: restricted namespace, install, `helm test` |
 
 ---
 
@@ -392,6 +431,8 @@ task logs       # tail logs
 task clean      # down + volumes
 task lint       # run every linter locally
 task cli -- compose ps                 # proxy to dockerctl (runs from the repo root)
+task chart:lint                        # helm lint --strict
+task kind:test                         # chart on a local kind cluster, then helm test
 ```
 
 ---
@@ -430,6 +471,14 @@ impostor action commits.
   and `admin:admin` does not, waits for every Prometheus target and for cAdvisor's
   per-container series, then runs the built `dockerctl` image against the runner's live
   Docker socket
+
+**`helm` job**
+- fails if the chart's nginx and httpd images or its `httpd.conf` differ from compose
+- `helm lint --strict`, then a **kind** cluster: a namespace labelled to enforce the
+  **restricted Pod Security Standard** (first proven by refusing a bare pod), `helm install --wait`
+  with a locally built counter, every Deployment rolled out, `helm test`, and a check that the
+  **NetworkPolicy is enforced**: nginx, which may open no connection, must fail to reach the httpd
+  pod that the test pod just reached
 
 **`publish` job** (pushes to `main` only) calls the shared
 [`_publish.yml`](.github/workflows/_publish.yml), which never tags anything it has not checked:

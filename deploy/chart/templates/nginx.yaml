@@ -1,0 +1,3 @@
+{{- if .Values.nginx.enabled }}
+{{ include "devops-stack.web" (dict "root" . "component" "nginx" "values" .Values.nginx) }}
+{{- end }}

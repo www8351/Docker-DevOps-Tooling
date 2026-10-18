@@ -1,0 +1,75 @@
+{{- if .Values.networkPolicy.enabled }}
+# Deny every connection to and from the release's pods. The policies below
+# open only what each pod needs; NetworkPolicies add up, so anything not
+# listed stays blocked.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "devops-stack.fullname" . }}-default-deny
+  labels:
+    {{- include "devops-stack.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "devops-stack.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+---
+# nginx and httpd accept HTTP on 8080 from anywhere; they open no
+# connections of their own.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "devops-stack.fullname" . }}-web-ingress
+  labels:
+    {{- include "devops-stack.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "devops-stack.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: [nginx, httpd]
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+---
+# The helm test pod may reach the web servers and cluster DNS, nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "devops-stack.fullname" . }}-test-egress
+  labels:
+    {{- include "devops-stack.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "devops-stack.componentSelectorLabels" (dict "root" . "component" "test") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "devops-stack.selectorLabels" . | nindent 14 }}
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values: [nginx, httpd]
+      ports:
+        - port: 8080
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}

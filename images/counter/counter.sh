@@ -23,6 +23,11 @@ if [ "${1:-}" = "--healthcheck" ]; then
 	exit 1
 fi
 
+# Exit on SIGTERM and SIGINT. As PID 1 (a Kubernetes pod, or docker run
+# without --init) the shell ignores any signal it has no handler for, so
+# without this trap a stop waits out the whole grace period.
+trap 'exit 0' INT TERM
+
 counter=0
 while true; do
 	sleep 0.5

@@ -10,6 +10,8 @@ dotenv:
   - compose/.env
 
 vars:
+  CHART: deploy/chart
+  KIND_CLUSTER: devops-stack
   TRIVY_IMAGE: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
 
 tasks:
@@ -122,3 +124,31 @@ tasks:
     desc: 'Run the dockerctl CLI, e.g. `task cli -- compose ps`'
     cmds:
       - uv run --locked --project cli dockerctl {{.CLI_ARGS}}
+
+  # The Helm chart under deploy/chart. kind:test runs the same steps as the
+  # CI helm job on a throwaway local cluster (needs helm, kind and kubectl).
+  chart:lint:
+    desc: Lint the Helm chart (strict) and check it against its values schema
+    cmds:
+      - helm lint --strict {{.CHART}}
+
+  chart:template:
+    desc: Render the Helm chart with its default values
+    cmds:
+      - helm template devops-stack {{.CHART}}
+
+  kind:test:
+    desc: Install the chart on a local kind cluster under the restricted profile, then helm test
+    cmds:
+      - kind create cluster --name {{.KIND_CLUSTER}} --wait 120s
+      - defer: kind delete cluster --name {{.KIND_CLUSTER}}
+      - docker build -t counter:local images/counter
+      - kind load docker-image counter:local --name {{.KIND_CLUSTER}}
+      - kubectl create namespace stack
+      - kubectl label namespace stack pod-security.kubernetes.io/enforce=restricted
+      - >-
+        helm install devops-stack {{.CHART}} -n stack --wait --timeout 5m
+        --set counter.image.repository=counter
+        --set counter.image.tag=local
+        --set counter.image.pullPolicy=Never
+      - helm test devops-stack -n stack --logs

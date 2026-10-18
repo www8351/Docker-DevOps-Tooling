@@ -1,0 +1,50 @@
+{{- $ctx := dict "root" . "component" "test" }}
+# `helm test`: fetch each enabled web server through its Service. Runs the
+# nginx image (busybox wget) as its nginx user, under the same restrictions
+# as the release.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "devops-stack.componentName" $ctx }}
+  labels:
+    {{- include "devops-stack.componentLabels" $ctx | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "devops-stack.serviceAccountName" . }}
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    {{- include "devops-stack.podSecurityContext" .Values.nginx | nindent 4 }}
+  containers:
+    - name: test
+      image: {{ include "devops-stack.image" (dict "root" . "image" .Values.nginx.image) | quote }}
+      imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+      command: ["sh", "-c"]
+      args:
+        - |
+          set -eu
+          {{- if .Values.nginx.enabled }}
+          wget -q -T 10 -O /dev/null "http://{{ include "devops-stack.componentName" (dict "root" . "component" "nginx") }}:{{ .Values.nginx.service.port }}/"
+          echo "nginx: 200"
+          {{- end }}
+          {{- if .Values.httpd.enabled }}
+          wget -q -T 10 -O /dev/null "http://{{ include "devops-stack.componentName" (dict "root" . "component" "httpd") }}:{{ .Values.httpd.service.port }}/"
+          echo "httpd: 200"
+          {{- end }}
+      resources:
+        requests:
+          cpu: 10m
+          memory: 8Mi
+        limits:
+          cpu: 100m
+          memory: 32Mi
+      securityContext:
+        {{- include "devops-stack.containerSecurityContext" . | nindent 8 }}
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    {{- include "devops-stack.tmpVolume" . | nindent 4 }}

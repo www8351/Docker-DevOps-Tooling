@@ -63,6 +63,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--user`, `--memory`, `--pids-limit`, `--no-harden`. `--no-harden` refuses
   the hardening options with a usage error instead of ignoring them.
 - CI drives `inspect`, `logs` and `compose ps` against the live stack.
+- **Helm chart** `deploy/chart` (#12) for nginx, httpd and counter: non-root
+  with fixed UIDs, seccomp `RuntimeDefault`, read-only root filesystems, no
+  capabilities, no service account token, default-deny NetworkPolicies and a
+  `helm test` pod, admitted under the restricted Pod Security Standard.
+  Taskfile `chart:lint`, `chart:template` and `kind:test`.
+- CI `helm` job: installs the chart on kind in a namespace enforcing the
+  restricted profile and runs `helm test`; it also fails when the chart's
+  images or `httpd.conf` drift from compose.
 
 ### Changed
 
@@ -77,9 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** the counter image writes a heartbeat file to `/tmp`; running it
   with a read-only root filesystem now needs a writable `/tmp`
   (`--tmpfs /tmp`).
+- httpd runs as `www-data` (UID 82) on port 8080 from a minimal
+  `compose/httpd/httpd.conf`, with no capabilities added back; the host port
+  stays 8081.
 - nginx moves to `nginxinc/nginx-unprivileged` 1.30 stable on port 8080;
   Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
   nginx-prometheus-exporter to their latest patch releases.
+- counter exits promptly on SIGTERM when it runs as PID 1 (Kubernetes, or
+  `docker run` without `--init`) instead of waiting to be killed.
 - counter moves to Alpine 3.24 with a heartbeat healthcheck
   (`counter.sh --healthcheck`) that fails when the loop stalls; the old
   `pgrep` probe always matched docker-init and could never fail.
