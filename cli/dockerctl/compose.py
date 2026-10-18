@@ -4,7 +4,8 @@ The compose file defaults to compose/docker-compose.yml relative to the
 working directory (the repository root); point elsewhere with --file or the
 DOCKERCTL_COMPOSE_FILE environment variable. Needs the docker compose plugin,
 which the dockerctl image does not ship: inside the image these commands fail
-with docker's own "unknown command" error and exit 1.
+with docker's own usage error (docker-cli 29 reports "unknown shorthand flag:
+'f' in -f") and exit 1.
 """
 
 from __future__ import annotations

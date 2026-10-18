@@ -333,15 +333,18 @@ dockerctl --version           # or -V, or the `version` subcommand
 
 **`containers deploy` is hardened by default**: `no-new-privileges`, every capability dropped,
 a read-only root filesystem with `/tmp` on tmpfs, `--pids-limit 256`, `--memory 256m`, and the
-port published on `127.0.0.1` unless the mapping names an address (`0.0.0.0:8080:80`). Images
-that need more ask for it: `--cap-add NET_BIND_SERVICE`, `--tmpfs /var/cache/nginx`,
-`--writable`, `--user 101:101`, `--memory 512m`, `--pids-limit 1024`. `--no-harden` gives a
-plain `docker run -d`.
+port published on `127.0.0.1` unless the mapping names an address (`0.0.0.0:8080:80`); an empty
+address (`:8080:80`) also gets `127.0.0.1`. Images that need more ask for it:
+`--cap-add NET_BIND_SERVICE`, `--tmpfs /var/cache/nginx`, `--writable`, `--user 101:101`,
+`--memory 512m`, `--pids-limit 1024`. `--tmpfs /tmp:size=64m` replaces the default `/tmp`
+mount. `--no-harden` gives a plain `docker run -d` with only `--name`, `--port` and `--user`,
+and refuses the other options rather than ignore them.
 
 **`compose` runs on the host**: it wraps `docker compose -f compose/docker-compose.yml`
 (relative to where you run it; set `--file` or `DOCKERCTL_COMPOSE_FILE` otherwise) and needs the
-Docker Compose plugin, which the `dockerctl` image does not ship. Unlike `docker compose`,
-`--file` and `--profile` go after the subcommand: `dockerctl compose ps --profile observability`.
+Docker Compose plugin, which the `dockerctl` image does not ship (inside the image these
+commands exit 1 with docker's own usage error). Unlike `docker compose`, `--file` and
+`--profile` go after the subcommand: `dockerctl compose ps --profile observability`.
 
 <details>
 <summary><b>Full command reference</b> (3 groups, 19 commands)</summary>

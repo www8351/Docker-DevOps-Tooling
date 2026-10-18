@@ -54,8 +54,11 @@ def _loopback(port: str) -> str:
     """Bind a port mapping to 127.0.0.1 unless it already names a host address.
 
     "8080:80" -> "127.0.0.1:8080:80", "80" -> "127.0.0.1::80" (random host
-    port); "0.0.0.0:8080:80" and "[::1]:8080:80" are left as given.
+    port); an empty address as in ":8080:80" or "::80" also gets 127.0.0.1.
+    "0.0.0.0:8080:80" and "[::1]:8080:80" are left as given.
     """
+    if port.startswith(":"):
+        return f"127.0.0.1{port}"
     if port.startswith("[") or port.count(":") >= 2:
         return port
     if ":" in port:
@@ -72,7 +75,7 @@ def deploy(
         "--port",
         "-p",
         help="Port mapping host:container, e.g. 8080:80 (bound to 127.0.0.1 unless "
-        "an address is given)",
+        "an address is given or --no-harden is set)",
     ),
     cap_add: Annotated[
         list[str] | None,
@@ -80,18 +83,25 @@ def deploy(
     ] = None,
     tmpfs: Annotated[
         list[str] | None,
-        typer.Option("--tmpfs", help="Extra writable tmpfs path; /tmp is always one (repeatable)"),
+        typer.Option(
+            "--tmpfs",
+            help="Extra writable tmpfs path; /tmp is one unless given here with options "
+            "(repeatable)",
+        ),
     ] = None,
     writable: bool = typer.Option(
         False, "--writable", help="Keep the root filesystem writable instead of read-only"
     ),
     user: str | None = typer.Option(None, "--user", help="Run as UID[:GID]"),
-    memory: str = typer.Option("256m", "--memory", help="Memory limit"),
-    pids_limit: int = typer.Option(256, "--pids-limit", help="Maximum number of processes"),
+    memory: str | None = typer.Option(None, "--memory", help="Memory limit (default 256m)"),
+    pids_limit: int | None = typer.Option(
+        None, "--pids-limit", help="Maximum number of processes (default 256)"
+    ),
     no_harden: bool = typer.Option(
         False,
         "--no-harden",
-        help="Plain `docker run -d` with only --name, --port and --user applied",
+        help="Plain `docker run -d` with only --name, --port and --user applied; "
+        "the hardening options above are rejected",
     ),
 ) -> None:
     """Run a detached container, hardened by default.
@@ -99,8 +109,22 @@ def deploy(
     By default the container gets no-new-privileges, all capabilities dropped,
     a read-only root filesystem with /tmp on tmpfs, process and memory limits,
     and its port published on 127.0.0.1 only. Each default has an escape
-    hatch; --no-harden turns them all off.
+    hatch; --no-harden turns them all off and refuses the hardening options,
+    so a flag is never silently ignored.
     """
+    if no_harden:
+        given = {
+            "--cap-add": bool(cap_add),
+            "--tmpfs": bool(tmpfs),
+            "--writable": writable,
+            "--memory": memory is not None,
+            "--pids-limit": pids_limit is not None,
+        }
+        clash = [flag for flag, set_ in given.items() if set_]
+        if clash:
+            raise typer.BadParameter(
+                f"cannot be combined with {', '.join(clash)}", param_hint="'--no-harden'"
+            )
     args = ["run", "-d", "--name", name]
     published = port
     if not no_harden:
@@ -110,9 +134,17 @@ def deploy(
             args += ["--cap-add", cap]
         if not writable:
             args.append("--read-only")
-        for path in ["/tmp", *(tmpfs or [])]:
+        paths = tmpfs or []
+        if all(path.split(":", 1)[0] != "/tmp" for path in paths):
+            paths = ["/tmp", *paths]
+        for path in paths:
             args += ["--tmpfs", path]
-        args += ["--pids-limit", str(pids_limit), "--memory", memory]
+        args += [
+            "--pids-limit",
+            str(256 if pids_limit is None else pids_limit),
+            "--memory",
+            memory or "256m",
+        ]
     if user:
         args += ["--user", user]
     args += ["-p", published, "--", image]

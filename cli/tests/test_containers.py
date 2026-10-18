@@ -76,6 +76,8 @@ def test_deploy_is_hardened_by_default(runner: CliRunner, record_calls: RecordCa
         ("8443:443/tcp", "127.0.0.1:8443:443/tcp"),
         ("0.0.0.0:8080:80", "0.0.0.0:8080:80"),
         ("[::1]:8080:80", "[::1]:8080:80"),
+        (":8080:80", "127.0.0.1:8080:80"),
+        ("::80", "127.0.0.1::80"),
     ],
 )
 def test_deploy_binds_to_loopback_unless_an_address_is_given(
@@ -141,6 +143,52 @@ def test_deploy_escape_hatches(runner: CliRunner, record_calls: RecordCalls) -> 
         "--",
         "img",
     )
+
+
+def test_deploy_user_tmpfs_for_tmp_replaces_the_default(
+    runner: CliRunner, record_calls: RecordCalls
+) -> None:
+    calls = record_calls(containers)
+    result = runner.invoke(
+        app,
+        ["containers", "deploy", "img", "-n", "web", "-p", "80", "--tmpfs", "/tmp:size=64m"],
+    )
+    assert result.exit_code == 0
+    args = calls[0][0]
+    tmpfs = [args[i + 1] for i, a in enumerate(args) if a == "--tmpfs"]
+    assert tmpfs == ["/tmp:size=64m"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--cap-add", "CHOWN"],
+        ["--tmpfs", "/run"],
+        ["--writable"],
+        ["--memory", "1g"],
+        ["--pids-limit", "64"],
+    ],
+)
+def test_deploy_no_harden_rejects_hardening_options(
+    runner: CliRunner, record_calls: RecordCalls, extra: list[str]
+) -> None:
+    calls = record_calls(containers)
+    result = runner.invoke(
+        app, ["containers", "deploy", "img", "-n", "web", "-p", "80", "--no-harden", *extra]
+    )
+    assert result.exit_code == 2
+    assert "--no-harden" in result.stderr
+    assert calls == []
+
+
+def test_deploy_no_harden_keeps_user(runner: CliRunner, record_calls: RecordCalls) -> None:
+    calls = record_calls(containers)
+    result = runner.invoke(
+        app,
+        ["containers", "deploy", "img", "-n", "web", "-p", "80", "--no-harden", "--user", "1000"],
+    )
+    assert result.exit_code == 0
+    assert calls[0][0] == ("run", "-d", "--name", "web", "--user", "1000", "-p", "80", "--", "img")
 
 
 def test_deploy_no_harden_is_a_plain_run(runner: CliRunner, record_calls: RecordCalls) -> None:

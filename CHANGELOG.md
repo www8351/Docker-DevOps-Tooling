@@ -60,7 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   waits for every healthcheck by default; `--file` / `DOCKERCTL_COMPOSE_FILE`
   pick the compose file and `--profile` is repeatable.
 - `containers deploy` escape hatches: `--cap-add`, `--tmpfs`, `--writable`,
-  `--user`, `--memory`, `--pids-limit`, `--no-harden`.
+  `--user`, `--memory`, `--pids-limit`, `--no-harden`. `--no-harden` refuses
+  the hardening options with a usage error instead of ignoring them.
 - CI drives `inspect`, `logs` and `compose ps` against the live stack.
 
 ### Changed
@@ -89,8 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `containers deploy` is hardened by default (`no-new-privileges`,
   all capabilities dropped, read-only root filesystem with `/tmp` on tmpfs,
   `--pids-limit 256`, `--memory 256m`, port bound to `127.0.0.1` unless an
-  address is given). Use the escape hatches or `--no-harden` for images that
-  need more.
+  address is given, including an empty one as in `:8080:80`). Use the escape
+  hatches or `--no-harden` for images that need more.
 - `task cli` runs from the repository root so `dockerctl compose` finds the
   stack.
 - CI runs on pull requests and pushes to `main` only (not on every branch
