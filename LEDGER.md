@@ -28,20 +28,8 @@ Issue:  Grafana admin password defaults to admin and is published on every inter
 Action: Phase 1.7. Compose secret with GF_SECURITY_ADMIN_PASSWORD__FILE, no default (D4).
 Status: OPEN
 
-Issue:  Every published port binds 0.0.0.0, including Portainer over HTTP and unauthenticated Prometheus.
-Action: Phase 1.4. WEB_BIND_ADDR and ADMIN_BIND_ADDR default to 127.0.0.1 (D3).
-Status: OPEN
-
-Issue:  counter healthcheck pgrep -f counter.sh always matches PID 1 (docker-init runs counter.sh under init: true), so it can never fail.
-Action: Phase 1.3. Heartbeat file plus counter.sh --healthcheck (D10).
-Status: OPEN
-
-Issue:  dockerctl image copies a glibc venv (python:3.12-slim) into a musl runtime (python:3.12-alpine). Dependabot PR #38 bumps only the runtime and fails stack-test with ModuleNotFoundError: No module named 'dockerctl'.
-Action: Phase 1.2. One shared alpine base stage for builder and runtime (D5).
-Status: OPEN
-
-Issue:  counter image uses alpine:3.20, which is end of life. nginx:1.27-alpine is an unmaintained branch. No image is pinned by digest. Compose images are not tracked by Dependabot.
-Action: Phase 1.3, 1.5, 1.6. alpine 3.24, nginx-unprivileged stable, literal digest pinned refs (D6, D9).
+Issue:  Compose images are pinned literally by digest but not yet tracked by Dependabot.
+Action: Phase 2.12. Add the docker-compose ecosystem to .github/dependabot.yml.
 Status: OPEN
 
 Issue:  Portainer first run admin page can be claimed by whoever reaches it first (#13, closed as completed without code).
@@ -131,6 +119,30 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Compose image references sat in *_TAG variables Dependabot cannot follow; Portainer 2.27 and Grafana 12.3 no longer receive patches.
+Action: Commit 74fa41b. Every image written literally as tag@digest, *_TAG variables removed. portainer-ce 2.39.8 (LTS), grafana 12.4.13, prometheus v3.13.4, nginx-prometheus-exporter 1.5.3, httpd 2.4.69-alpine3.24, cadvisor v0.55.1. Local boot of the stack minus counter: all healthchecks pass, all endpoints 200, all Prometheus targets up.
+Status: DONE
+
+Issue:  nginx 1.27 is unmaintained and needed four re-added capabilities to bind port 80.
+Action: Commit 46bcab4. nginxinc/nginx-unprivileged 1.30.6 on port 8080, no capabilities, tmpfs /tmp only. Local check: healthy, HTTP 200, uid=101, CapEff 0, stub_status answers on 8082.
+Status: DONE
+
+Issue:  Every published port bound 0.0.0.0, including Portainer over HTTP and unauthenticated Prometheus.
+Action: Commit b52420c. WEB_BIND_ADDR and ADMIN_BIND_ADDR default to 127.0.0.1; the lint job asserts loopback binding in the rendered config. Local check: published 5, off loopback [].
+Status: DONE
+
+Issue:  counter ran on end of life alpine:3.20 and its pgrep healthcheck could never fail.
+Action: Commit 4158312. Shared digest pinned alpine:3.24 base, heartbeat file and counter.sh --healthcheck, image HEALTHCHECK, exec form probe in compose, network_mode none. Local check on alpine 3.24: running loop exit 0, frozen loop exit 1, old pgrep probe on the frozen loop exit 0, read-only rootfs without tmpfs makes the loop exit 1.
+Status: DONE
+
+Issue:  dockerctl image copied a glibc venv into a musl runtime; Dependabot PR #38 failed with ModuleNotFoundError: No module named 'dockerctl'.
+Action: Commit 03d59ac. One digest pinned python:3.13-alpine3.24 base for builder and runtime, explicit COPY of pyproject.toml and the package, pip removed from venv and runtime, CI image job smoke runs the entrypoint. Local simulation in the pinned base: venv imports, dockerctl version prints 0.2.1, pip absent. Full image build left to CI because this environment blocks dl-cdn.alpinelinux.org.
+Status: DONE
+
+Issue:  Local verification inside the cloud environment.
+Action: Started dockerd locally with mirror.gcr.io as registry mirror (Docker Hub answers 429). Image builds that run apk cannot complete here because the network policy blocks dl-cdn.alpinelinux.org; those builds are verified in CI.
+Status: DONE
 
 Issue:  No project ledger existed; findings and the roadmap lived only in a session plan.
 Action: Created LEDGER.md seeded with the audit findings, the five unimplemented v0.3.0 features, the open Dependabot PRs, owner rulings and the planned technical decisions.
