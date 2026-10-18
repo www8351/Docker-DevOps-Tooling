@@ -77,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** the counter image writes a heartbeat file to `/tmp`; running it
   with a read-only root filesystem now needs a writable `/tmp`
   (`--tmpfs /tmp`).
+- httpd runs as `www-data` (UID 82) on port 8080 from a minimal
+  `compose/httpd/httpd.conf`, with no capabilities added back; the host port
+  stays 8081.
 - nginx moves to `nginxinc/nginx-unprivileged` 1.30 stable on port 8080;
   Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
   nginx-prometheus-exporter to their latest patch releases.

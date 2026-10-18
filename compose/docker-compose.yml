@@ -59,23 +59,27 @@ services:
           memory: 128M
 
   # Apache, replacing the old (nonexistent) "apache2" image with the real httpd.
+  # Runs as www-data (UID 82) on port 8080 from ./httpd/httpd.conf, the same
+  # file the Helm chart ships, so it needs no capabilities at all; the pid
+  # file and mutexes live on the /tmp tmpfs.
   httpd:
     image: httpd:2.4.69-alpine3.24@sha256:3440c39d8d6f54fa9ad2549e5a60c19ddd435faadc29c1ad28aa795f71888889
+    user: "82:82"
     ports:
-      - "${WEB_BIND_ADDR:-127.0.0.1}:${HTTPD_PORT:-8081}:80"
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${HTTPD_PORT:-8081}:8080"
+    volumes:
+      - ./httpd/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
     read_only: true
     tmpfs:
-      - /usr/local/apache2/logs # httpd.pid lives here
       - /tmp
     cap_drop: [ALL]
-    cap_add: [CHOWN, SETGID, SETUID, NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
     networks: [web]

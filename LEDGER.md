@@ -52,6 +52,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  compose httpd still ran its master as root and re-added CHOWN, SETGID, SETUID and NET_BIND_SERVICE to bind port 80 (D9).
+Action: New compose/httpd/httpd.conf (Listen 8080, pid and mutexes in /tmp, logs to stdout and stderr, ServerTokens Prod, TraceEnable Off, nosniff header, root directory denied); compose runs httpd as 82:82 with it mounted over the image config, only /tmp on tmpfs and no cap_add. README and SECURITY.md updated. Local: docker compose up --wait reported compose-httpd-1 Healthy, user=82:82 ro=true capadd=[] capdrop=[ALL], every process www-data, :8081 returned 200; under docker run the same config answered TRACE with 405 and a path outside htdocs with 404.
+Status: DONE
+
 Issue:  Phase 3 PR #77.
 Action: Owner merged PR #77 into main as 8aa5aa9 (head 87f7526, all 14 run checks green, publish skipped). main also carries 09e8956, Dependabot PR #76 (actions/upload-artifact 7.0.1 to 7.0.2). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease.
 Status: DONE

@@ -59,9 +59,8 @@ regexp above matches both. To pin a release exactly, use
 - Images are published multi-arch (linux/amd64, linux/arm64).
 - CI boots the full hardened stack on every pull request: healthchecks and live
   endpoint probes gate the merge.
-- Compose services run read-only with all capabilities dropped (httpd
-  re-adds the four it needs to bind port 80 and switch to its worker user),
-  bounded logging, resource limits, and `no-new-privileges`.
+- Compose services run read-only with all capabilities dropped and none
+  added back, bounded logging, resource limits, and `no-new-privileges`.
 - Published ports bind to `127.0.0.1` unless `WEB_BIND_ADDR` /
   `ADMIN_BIND_ADDR` say otherwise.
 - Portainer and Grafana admin passwords come from generated secret files
@@ -75,9 +74,10 @@ regexp above matches both. To pin a release exactly, use
   `stub_status` listener (port 8082, never published) is also reachable from
   httpd on the shared `web` network; it exposes only connection and request
   counters.
-- Services that still run as root inside their container: httpd's master
-  process, Portainer, and cAdvisor (with no capabilities and only `/sys`
-  mounted read-only). Everything else runs as a fixed non-root user.
+- Services that still run as root inside their container: Portainer, and
+  cAdvisor (with no capabilities and only `/sys` mounted read-only).
+  Everything else runs as a fixed non-root user (httpd as `www-data`, UID 82,
+  on port 8080).
 - All GitHub Actions are pinned to full commit SHAs and run under
   least-privilege workflow permissions, with job timeouts and no checkout
   persisting its token.
