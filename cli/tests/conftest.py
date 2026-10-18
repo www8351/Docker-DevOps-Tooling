@@ -6,6 +6,7 @@ inside the module under test (e.g. `dockerctl.containers.run`).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from types import ModuleType
 
@@ -17,6 +18,13 @@ from dockerctl._docker import DockerError
 Call = tuple[tuple[str, ...], dict[str, object]]
 RecordCalls = Callable[..., list[Call]]
 DockerFails = Callable[..., None]
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def plain(text: str) -> str:
+    """Drop ANSI styling. Typer forces colour when GITHUB_ACTIONS is set."""
+    return _ANSI.sub("", text)
 
 
 @pytest.fixture

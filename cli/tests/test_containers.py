@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 
 from dockerctl import containers
 from dockerctl.__main__ import app
-from tests.conftest import DockerFails, RecordCalls
+from tests.conftest import DockerFails, RecordCalls, plain
 
 
 def test_ls_default(runner: CliRunner, record_calls: RecordCalls) -> None:
@@ -177,7 +177,9 @@ def test_deploy_no_harden_rejects_hardening_options(
         app, ["containers", "deploy", "img", "-n", "web", "-p", "80", "--no-harden", *extra]
     )
     assert result.exit_code == 2
-    assert "--no-harden" in result.stderr
+    message = plain(result.stderr)
+    assert "Invalid value for '--no-harden'" in message
+    assert f"cannot be combined with {extra[0]}" in message
     assert calls == []
 
 
