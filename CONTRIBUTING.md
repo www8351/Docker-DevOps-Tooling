@@ -38,9 +38,13 @@ A change is mergeable when all three of `task lint`, `task test`, and
   hadolint-clean.
 - **Python** is ruff-clean (line length 100) and mypy-strict-clean; the CLI
   version lives only in `cli/pyproject.toml`.
-- **Ports and image tags** come from `compose/.env` (copy `.env.example`),
-  never hardcoded. Keep alpine-based tags — their busybox `wget` powers the
-  compose healthchecks.
+- **Bind addresses and ports** come from `compose/.env` (copy `.env.example`).
+  **Images** are pinned as `tag@sha256:digest` directly in
+  `compose/docker-compose.yml` so Dependabot can bump them. Keep alpine-based
+  images where a healthcheck uses busybox `wget`.
+- **Secrets** live only in `compose/secrets/` (gitignored, created by
+  `scripts/gen-secrets.sh`). Never add a default password to compose or
+  `.env.example`.
 - **GitHub Actions** are pinned to full commit SHAs with a version comment.
 
 ## Releases

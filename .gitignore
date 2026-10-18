@@ -4,6 +4,9 @@
 # Local env (compose reads this; keep .env.example tracked)
 compose/.env
 
+# Generated admin passwords (scripts/gen-secrets.sh)
+compose/secrets/
+
 # Python
 __pycache__/
 *.egg-info/

@@ -6,10 +6,15 @@
 #   docker compose config        # validate without starting anything
 #
 # Hardening baseline (applied per service below):
-#   - pinned image tags (overridable via .env; alpine variants provide busybox
-#     wget for healthchecks)
+#   - images pinned by tag and digest, written literally so Dependabot can
+#     bump them (alpine variants provide busybox wget for healthchecks); to
+#     run a different image, layer an override file with a second -f
+#   - published ports bind to loopback unless WEB_BIND_ADDR / ADMIN_BIND_ADDR
+#     say otherwise; the admin UIs and the web tier are opened separately
 #   - healthchecks on every long-running service that can support one
-#   - two network tiers: `web` (public-facing) and `mgmt` (docker.sock consumers)
+#   - network tiers: `web` (public-facing), `nginx-status` (internal, stub_status
+#     only), `metrics` (prometheus, grafana, cadvisor), `mgmt` (portainer and
+#     its docker.sock); services that need no network get none
 #   - read-only root filesystems with tmpfs for known write paths
 #   - all capabilities dropped, only the minimum added back
 #   - no-new-privileges, CPU/memory limits, bounded json-file logging
@@ -22,31 +27,30 @@ x-logging: &default-logging
 
 services:
   # Static web server, serving ../web read-only (was Create_Web_Server.sh / nginx_exec.sh).
+  # nginx-unprivileged runs as UID 101 on port 8080 and keeps its pid and
+  # temp files under /tmp, so it needs no capabilities at all.
   nginx:
-    image: nginx:${NGINX_TAG:-1.27-alpine}
+    image: nginxinc/nginx-unprivileged:1.30.6-alpine3.24@sha256:782bb89768cc87b7f95c18b95baa1af250e5d451f26794f59363540161147c01
     ports:
-      - "${NGINX_PORT:-8080}:80"
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${NGINX_PORT:-8080}:8080"
     volumes:
       - ../web:/usr/share/nginx/html:ro
       # stub_status on :8082 (not host-mapped) for the observability profile.
       - ./nginx/status.conf:/etc/nginx/conf.d/status.conf:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
     read_only: true
     tmpfs:
-      - /var/cache/nginx
-      - /var/run
       - /tmp
     cap_drop: [ALL]
-    cap_add: [CHOWN, SETGID, SETUID, NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
-    networks: [web]
+    networks: [web, nginx-status]
     logging: *default-logging
     deploy:
       resources:
@@ -56,9 +60,9 @@ services:
 
   # Apache, replacing the old (nonexistent) "apache2" image with the real httpd.
   httpd:
-    image: httpd:${HTTPD_TAG:-2.4-alpine}
+    image: httpd:2.4.69-alpine3.24@sha256:3440c39d8d6f54fa9ad2549e5a60c19ddd435faadc29c1ad28aa795f71888889
     ports:
-      - "${HTTPD_PORT:-8081}:80"
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${HTTPD_PORT:-8081}:80"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
@@ -85,15 +89,23 @@ services:
   # Docker management UI, replacing the dead abh1nav/dockerui.
   # No healthcheck: portainer-ce is scratch-based (no shell, wget, or curl),
   # so there is no exec probe to run; `restart: unless-stopped` covers crashes.
-  # The socket stays read-write on purpose — Portainer manages the engine.
+  # The socket stays read-write on purpose: Portainer manages the engine.
+  # The admin account is created from a secret file on first start, so the
+  # setup page can never be claimed by whoever reaches it first. Like
+  # Grafana, it is only read when portainer_data is new.
   portainer:
-    image: portainer/portainer-ce:${PORTAINER_TAG:-2.27.9}
+    image: portainer/portainer-ce:2.39.8@sha256:da7f74b74c7f37c50d2ebd3db4c6bcfdbf2fe9ca1e8b4c6c0203e39fde1fd249
+    command: ["--admin-password-file", "/run/secrets/portainer_admin_password"]
     ports:
-      - "${PORTAINER_PORT:-9000}:9000"
+      - "${ADMIN_BIND_ADDR:-127.0.0.1}:${PORTAINER_PORT:-9000}:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
+    secrets: [portainer_admin_password]
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -107,22 +119,26 @@ services:
 
   # Custom image built from ../images/counter (was lab2 Dockerfile + counter.sh).
   # `init: true` so the sleep loop gets a proper PID 1 and honors SIGTERM.
+  # The healthcheck reads the loop's heartbeat file (on the /tmp tmpfs), so a
+  # stalled loop turns the container unhealthy. It needs no network at all.
   counter:
     build:
       context: ../images/counter
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f counter.sh"]
-      interval: 30s
+      test: ["CMD", "/usr/local/bin/counter.sh", "--healthcheck"]
+      interval: 15s
       timeout: 5s
       retries: 3
       start_period: 10s
     init: true
     read_only: true
+    tmpfs:
+      - /tmp
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [web]
+    network_mode: none
     logging: *default-logging
     deploy:
       resources:
@@ -140,6 +156,8 @@ services:
       context: ../cli
     image: dockerctl:local
     # Mount the host socket to drive the real engine; safe to omit for --help.
+    # No network: the client reaches the engine over that unix socket, and
+    # pulls and pushes run inside the daemon, not in this container.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     read_only: true
@@ -148,7 +166,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    network_mode: none
     logging: *default-logging
     deploy:
       resources:
@@ -165,9 +183,9 @@ services:
 
   prometheus:
     profiles: ["observability"]
-    image: prom/prometheus:${PROMETHEUS_TAG:-v3.13.0}
+    image: prom/prometheus:v3.13.4@sha256:87861b8cf91579109319ebc300f3f1060e6da9c05d6ae8ad15a20c879e84e32e
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "${ADMIN_BIND_ADDR:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -182,7 +200,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    networks: [metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -192,14 +210,19 @@ services:
 
   grafana:
     profiles: ["observability"]
-    image: grafana/grafana:${GRAFANA_TAG:-12.3.8}
+    image: grafana/grafana:12.4.13@sha256:41bbc1b5e04416f81891806076db2a2ff60a5d4da5f78d36a88b033a8c199185
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${ADMIN_BIND_ADDR:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
+    # The admin password comes from a secret file (scripts/gen-secrets.sh);
+    # there is no default, so a missing file stops `up` instead of falling
+    # back to admin/admin. Grafana only reads it when it first creates its
+    # database: on an existing grafana_data volume, reset it in the UI.
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    secrets: [grafana_admin_password]
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
@@ -217,7 +240,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    networks: [metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -225,16 +248,19 @@ services:
           cpus: "0.50"
           memory: 256M
 
-  # Container-level metrics. Needs read-only views of the host and the
-  # docker state directory — that is its job; everything stays :ro.
+  # Container-level CPU and memory metrics, read straight from the host's
+  # cgroup tree. No docker.sock, no containerd socket, no host rootfs:
+  # cAdvisor's Docker integration needs both engine sockets, and either one
+  # is root-equivalent on the host. Without them containers are identified
+  # by cgroup id (Prometheus derives a short `container_id` label) instead of
+  # by name, and per-container network counters are not available.
+  # `cgroup: host` lets it see every container's cgroup on cgroup v2 hosts.
   cadvisor:
     profiles: ["observability"]
-    image: gcr.io/cadvisor/cadvisor:${CADVISOR_TAG:-v0.55.1}
+    image: gcr.io/cadvisor/cadvisor:v0.55.1@sha256:3de2bd5203120b866d74a9b283b2ffb8ec382fbf9dc321814700c6ea6f44ec57
     volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
       - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
+    cgroup: host
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
@@ -243,9 +269,10 @@ services:
       retries: 3
       start_period: 15s
     read_only: true
+    cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    networks: [metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -257,15 +284,16 @@ services:
   # `up` metric for the nginx job covers liveness.
   nginx-exporter:
     profiles: ["observability"]
-    image: nginx/nginx-prometheus-exporter:${NGINX_EXPORTER_TAG:-1.5.1}
+    image: nginx/nginx-prometheus-exporter:1.5.3@sha256:85666e7fde7e253f1c6d978f9a961245df4c9cdb7677e1866d9bb28e8f9ee41d
     command: ["--nginx.scrape-uri=http://nginx:8082/stub_status"]
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    # web to reach nginx's stub_status, mgmt so prometheus can scrape it.
-    networks: [web, mgmt]
+    # nginx-status to reach nginx's stub_status, metrics so prometheus can
+    # scrape it. It never joins the public web tier.
+    networks: [nginx-status, metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -274,10 +302,22 @@ services:
           memory: 32M
 
 networks:
-  # Public-facing services; no access to the docker socket tier.
+  # Public-facing web servers.
   web:
-  # Socket consumers (portainer, dockerctl), isolated from the web tier.
+  # nginx stub_status and its exporter only; internal, no route out.
+  nginx-status:
+    internal: true
+  # Prometheus, Grafana and cAdvisor. Not internal: two of them publish ports.
+  metrics:
+  # Portainer, the only service holding docker.sock in the default stack.
   mgmt:
+
+# Generated by scripts/gen-secrets.sh (or `task secrets`); never committed.
+secrets:
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password
+  portainer_admin_password:
+    file: ./secrets/portainer_admin_password
 
 volumes:
   portainer_data:

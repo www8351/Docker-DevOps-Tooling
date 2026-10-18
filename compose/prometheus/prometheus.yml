@@ -10,10 +10,19 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Container-level CPU/memory/network metrics for every service in the stack.
+  # Container-level CPU/memory metrics for every container on the host.
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
+    metric_relabel_configs:
+      # cAdvisor has no Docker API access, so it only knows each container
+      # by cgroup path: /docker/<id> (cgroupfs driver) or
+      # /system.slice/docker-<id>.scope (systemd driver). Expose the short
+      # id that `docker ps` prints as `container_id`.
+      - source_labels: [id]
+        regex: ".*/(?:docker-)?([0-9a-f]{12})[0-9a-f]{52}(?:\\.scope)?"
+        target_label: container_id
+        replacement: "$1"
 
   # nginx connection/request metrics via stub_status.
   - job_name: nginx

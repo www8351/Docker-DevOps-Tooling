@@ -29,7 +29,9 @@
 
 A production-grade Docker toolkit: **compose owns state**, a **typed Python CLI** owns
 dynamic operations, a **Taskfile** glues them, and **CI enforces everything**. Every
-long-running container is **read-only, non-root, capability-dropped, and health-checked**.
+long-running container runs on a **read-only root filesystem with dropped capabilities and
+`no-new-privileges`**, most run as non-root users, published ports bind to **loopback** by
+default, and admin passwords come from **generated secrets**.
 
 </td>
 <td width="50%" valign="top">
@@ -40,7 +42,8 @@ long-running container is **read-only, non-root, capability-dropped, and health-
 
 ערכת כלים ל-Docker ברמת production: **compose מחזיק את המצב**, **CLI פייתון מטופס** מחזיק
 את הפעולות הדינמיות, **Taskfile** מחבר ביניהם, ו-**CI אוכף הכול**. כל קונטיינר ארוך-טווח
-רץ **קריאה-בלבד, ללא root, עם הפלת יכולות, ובדיקת בריאות**.
+רץ עם **מערכת קבצים לקריאה בלבד, הפלת יכולות ו-`no-new-privileges`**, רובם רצים ללא root,
+הפורטים נקשרים כברירת מחדל ל-**loopback**, וסיסמאות הניהול מגיעות מ-**סודות שנוצרים אוטומטית**.
 
 </div>
 
@@ -49,18 +52,18 @@ long-running container is **read-only, non-root, capability-dropped, and health-
 </table>
 
 ```console
-$ docker compose ps
-NAME                  IMAGE                           STATUS                    PORTS
-compose-counter-1     compose-counter                 Up 18 seconds (healthy)
-compose-httpd-1       httpd:2.4-alpine                Up 18 seconds (healthy)   0.0.0.0:8081->80/tcp
-compose-nginx-1       nginx:1.27-alpine               Up 18 seconds (healthy)   0.0.0.0:8080->80/tcp
-compose-portainer-1   portainer/portainer-ce:2.27.9   Up 18 seconds             0.0.0.0:9000->9000/tcp
+$ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+NAMES                 IMAGE                                           STATUS                    PORTS
+compose-counter-1     compose-counter                                 Up 28 seconds (healthy)
+compose-httpd-1       httpd:2.4.69-alpine3.24                         Up 28 seconds (healthy)   127.0.0.1:8081->80/tcp
+compose-nginx-1       nginxinc/nginx-unprivileged:1.30.6-alpine3.24   Up 28 seconds (healthy)   127.0.0.1:8080->8080/tcp
+compose-portainer-1   portainer/portainer-ce:2.39.8                   Up 28 seconds             8000/tcp, 9443/tcp, 127.0.0.1:9000->9000/tcp
 ```
 
 ## ⚡ Highlights
 
 - **78 MB Ubuntu → ~7 MB hardened Alpine** the [before/after](#-counter--from-78-mb-of-attack-surface-to-a-few-mb) of the counter image
-- **Read-only containers, `cap_drop: ALL`, `no-new-privileges`** see [`compose/docker-compose.yml`](compose/docker-compose.yml)
+- **Read-only containers, `cap_drop: ALL`, `no-new-privileges`, loopback ports, generated admin secrets** see [`compose/docker-compose.yml`](compose/docker-compose.yml)
 - **SHA-pinned actions, Trivy gate, CycloneDX SBOMs** see [`ci.yml`](.github/workflows/ci.yml)
 - **Typed CLI: mypy strict, 45 tests, 100% coverage** see [`cli/`](cli/)
 - **Released [v0.2.1](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.2.1)** — multi-arch, cosign-signed, attested images on GHCR + a [CHANGELOG](CHANGELOG.md)
@@ -117,7 +120,7 @@ flowchart TD
 .
 ├── compose/
 │   ├── docker-compose.yml   # declarative stack (nginx, httpd, portainer, counter)
-│   └── .env.example         # ports + image tags  →  copy to .env
+│   └── .env.example         # bind addresses + ports  →  copy to .env
 ├── images/
 │   └── counter/             # custom image, built by compose
 │       ├── Dockerfile       # multi-stage, hardened, Alpine, non-root
@@ -154,18 +157,21 @@ flowchart TD
 ## 🚀 Quick start
 
 ```bash
-# 1. configure ports / image tags
+# 1. configure bind addresses / ports
 cp compose/.env.example compose/.env
 
-# 2. start everything in the background
-task up                 # or: docker compose -f compose/docker-compose.yml up -d
+# 2. generate the admin passwords (compose/secrets/, never committed)
+task secrets            # or: scripts/gen-secrets.sh
 
-# 3. open the services
+# 3. start everything in the background and wait until it is healthy
+task up                 # or: docker compose -f compose/docker-compose.yml up -d --wait
+
+# 4. open the services (bound to 127.0.0.1 unless you change WEB_BIND_ADDR / ADMIN_BIND_ADDR)
 #    nginx     → http://localhost:8080
 #    httpd     → http://localhost:8081
-#    portainer → http://localhost:9000
+#    portainer → http://localhost:9000   user admin, password in compose/secrets/portainer_admin_password
 
-# 4. tear down
+# 5. tear down
 task down               # or: docker compose -f compose/docker-compose.yml down
 ```
 
@@ -173,40 +179,51 @@ task down               # or: docker compose -f compose/docker-compose.yml down
 
 ## 🧱 The stack (docker-compose)
 
-Defined in [`compose/docker-compose.yml`](compose/docker-compose.yml). Ports and tags come
-from `compose/.env` (never hardcoded); tags are **pinned by default**.
+Defined in [`compose/docker-compose.yml`](compose/docker-compose.yml). Bind addresses and
+ports come from `compose/.env`; every image is **pinned by tag and digest** in the compose
+file itself, where Dependabot can bump it.
 
-| Service | Image | Default port | Health | Network | Notes |
-|---------|-------|--------------|--------|---------|-------|
-| `nginx` | `nginx:1.27-alpine` | `8080:80` | `wget` probe | `web` | serves `web/` read-only |
-| `httpd` | `httpd:2.4-alpine` | `8081:80` | `wget` probe | `web` | replaces the old non-existent `apache2` |
-| `portainer` | `portainer/portainer-ce:2.27.9` | `9000:9000` | — (scratch image) | `mgmt` | Docker UI, replaces dead `dockerui` |
-| `counter` | built from `images/counter/` | — | `pgrep` probe | `web` | incrementing counter; hardened Alpine, non-root (see [suite](#-devops-tooling--containerization-suite)) |
+| Service | Image | Default port | Health | Network | Runs as | Notes |
+|---------|-------|--------------|--------|---------|---------|-------|
+| `nginx` | `nginxinc/nginx-unprivileged:1.30.6-alpine3.24` | `127.0.0.1:8080` | `wget` probe | `web`, `nginx-status` | UID 101 | serves `web/` read-only, no capabilities |
+| `httpd` | `httpd:2.4.69-alpine3.24` | `127.0.0.1:8081` | `wget` probe | `web` | root master, `daemon` workers | re-adds the 4 capabilities port 80 needs |
+| `portainer` | `portainer/portainer-ce:2.39.8` | `127.0.0.1:9000` | none (scratch image) | `mgmt` | root | Docker UI; admin from a generated secret |
+| `counter` | built from `images/counter/` | none | heartbeat probe | none | UID 10001 | incrementing counter; hardened Alpine (see [suite](#-devops-tooling--containerization-suite)) |
 
-Every service runs with a **read-only root filesystem** (tmpfs for known write
-paths), **all capabilities dropped** (web servers re-add only what port 80
-needs), `no-new-privileges`, CPU/memory limits, and bounded json-file logging.
-The `mgmt` network isolates docker.sock consumers from the public-facing tier.
-The alpine tags are load-bearing: busybox `wget` powers the healthchecks.
+Every service runs with a **read-only root filesystem** (tmpfs for known write paths),
+`cap_drop: ALL` (only httpd re-adds capabilities), `no-new-privileges`, CPU/memory limits,
+and bounded json-file logging. Published ports bind to `WEB_BIND_ADDR` (nginx, httpd) and
+`ADMIN_BIND_ADDR` (portainer, prometheus, grafana), both `127.0.0.1` by default. Portainer is
+the only service in the default stack holding docker.sock, alone on the `mgmt` network (the
+`dockerctl` tool gets it only when you run it with the socket mounted). Admin passwords for
+Portainer and Grafana are read from `compose/secrets/` (created by `task secrets`); there is
+no default password, so `up` fails if the files are missing. Both apps only read the secret
+when their data volume is first created. The alpine tags are load-bearing: busybox `wget`
+powers the healthchecks.
 
 ### 📈 Observability profile
 
 ```bash
-docker compose -f compose/docker-compose.yml --profile observability up -d --wait
-# prometheus → http://localhost:9090      grafana → http://localhost:3000
+task obs:up             # or: docker compose -f compose/docker-compose.yml --profile observability up -d --wait
+# prometheus → http://localhost:9090      grafana → http://localhost:3000 (admin, compose/secrets/grafana_admin_password)
 ```
 
-| Service | Image | Port | Role |
-|---------|-------|------|------|
-| `prometheus` | `prom/prometheus:v3.13.0` | `9090` | scrapes cadvisor + nginx-exporter every 15s |
-| `grafana` | `grafana/grafana:12.3.8` | `3000` | **provisioned** datasource + committed [container dashboard](compose/grafana/dashboards/containers.json) — zero click-ops |
-| `cadvisor` | `gcr.io/cadvisor/cadvisor:v0.55.1` | per-container CPU/memory/network metrics |
-| `nginx-exporter` | `nginx/nginx-prometheus-exporter:1.5.1` | nginx `stub_status` → Prometheus metrics |
+| Service | Image | Port | Runs as | Role |
+|---------|-------|------|---------|------|
+| `prometheus` | `prom/prometheus:v3.13.4` | `127.0.0.1:9090` | `nobody` | scrapes cadvisor + nginx-exporter every 15s |
+| `grafana` | `grafana/grafana:12.4.13` | `127.0.0.1:3000` | UID 472 | **provisioned** datasource + committed [container dashboard](compose/grafana/dashboards/containers.json), zero click-ops |
+| `cadvisor` | `gcr.io/cadvisor/cadvisor:v0.55.1` | none | root, no capabilities | per-container CPU/memory metrics from the host cgroup tree |
+| `nginx-exporter` | `nginx/nginx-prometheus-exporter:1.5.3` | none | UID 1001 | nginx `stub_status` → Prometheus metrics |
 
-All four follow the same hardening baseline (read-only, `cap_drop: ALL`,
-`no-new-privileges`, memory limits, pinned tags). CI boots this profile too and
-fails the build if any Prometheus target is down. Deliberately out of scope:
-Alertmanager and Loki.
+All four run read-only with `cap_drop: ALL`, `no-new-privileges`, memory limits and
+digest-pinned images, on their own `metrics` network; the exporter reaches nginx over the
+internal `nginx-status` network and never joins `web`. cAdvisor gets **no engine socket**:
+its Docker integration needs both docker.sock and the containerd socket, and either one is
+root-equivalent. It mounts only `/sys` read-only, so the dashboard labels containers by the
+short id `docker ps` prints instead of by name, and per-container network counters are not
+collected. CI boots this profile too and fails the build if any Prometheus target is down or
+cAdvisor stops attributing metrics to containers. Deliberately out of scope: Alertmanager
+and Loki.
 
 ```bash
 task build    # docker compose --profile tools build  (counter + dockerctl)
@@ -225,8 +242,8 @@ the build toolchain never reaches the final image, and neither does root.
 
 | Image | Source | Base | Multi-stage layout | Runs as |
 |-------|--------|------|--------------------|---------|
-| `counter` | [`images/counter/`](images/counter/) | `alpine:3.20` | `lint` (shellcheck gate) → `runtime` | non-root `app` (UID 10001) |
-| `dockerctl` | [`cli/`](cli/) | `python:3.12-alpine` | `builder` (venv via `python:3.12-slim`) → `runtime` | non-root `app` (UID 10001) |
+| `counter` | [`images/counter/`](images/counter/) | `alpine:3.24` (digest pinned) | `lint` (shellcheck gate) → `runtime` | non-root `app` (UID 10001) |
+| `dockerctl` | [`cli/`](cli/) | `python:3.13-alpine3.24` (digest pinned) | `builder` (venv) → `runtime`, one shared base | non-root `app` (UID 10001) |
 
 ### 🔢 `counter` from 78 MB of attack surface to a few MB
 
@@ -236,7 +253,7 @@ script uses**. `sshpass` and `tcpdump` alone are exactly what an image scanner f
 
 | | Before ❌ | After ✅ |
 |--|----------|---------|
-| Base | `ubuntu:24.04` (~78 MB) | `alpine:3.20` (~7 MB) |
+| Base | `ubuntu:24.04` (~78 MB) | `alpine:3.24` (~7 MB) |
 | Extra packages | ssh, sshpass, tcpdump, net-tools, python3 | none |
 | User | root | non-root `app` (UID/GID 10001) |
 | Stages | 1 | 2 (lint gate → runtime) |
@@ -251,6 +268,10 @@ script uses**. `sshpass` and `tcpdump` alone are exactly what an image scanner f
   is installed read-and-execute only (`0555`).
 - **POSIX `sh`** rewriting the one bashism (`((counter++))` → `$((counter + 1))`) lets it run on
   Alpine's busybox `ash`, so no `bash` package is installed at all.
+- **A healthcheck that can fail** the loop touches a heartbeat file in `/tmp` every iteration and
+  `counter.sh --healthcheck` fails once it is older than 10 seconds. The image declares it as its
+  `HEALTHCHECK`, and compose runs the same command. Running it with `--read-only` therefore needs
+  a writable `/tmp` (`--tmpfs /tmp`, as compose does).
 
 ### 🐍 `dockerctl` multi-stage Python, no toolchain in the runtime
 
@@ -266,10 +287,11 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 ```
 
 **Hardening choices**
-- **Builder/runtime split** the `builder` stage uses a full `python:3.12-slim` to install the
-  project into an isolated venv at `/opt/venv`; the runtime stage copies only that venv, so pip,
-  build tools, and caches never ship.
-- **Minimal runtime** `python:3.12-alpine` plus only `docker-cli` (the client, not a daemon),
+- **Builder/runtime split on one base** both stages start from the same digest-pinned
+  `python:3.13-alpine3.24` image, because a venv only works with the interpreter and libc it was
+  built for. The `builder` installs the project into `/opt/venv`; the runtime copies only that venv.
+  pip is removed from the venv and from the runtime interpreter, so it never ships.
+- **Minimal runtime** the shared base plus only `docker-cli` (the client, not a daemon),
   because `dockerctl` shells out to `docker` (see [`cli/dockerctl/_docker.py`](cli/dockerctl/_docker.py)).
 - **Non-root `app` user** and a lean build context via [`cli/.dockerignore`](cli/.dockerignore)
   (tests, caches, and the Dockerfile itself are excluded).
@@ -333,7 +355,9 @@ The CLI is **mypy-strict clean** and its test suite is **coverage-gated at
 
 ```bash
 task            # list all tasks
-task up         # start the stack
+task secrets    # generate missing admin passwords
+task up         # start the stack and wait for health
+task obs:up     # stack + observability profile
 task down       # stop + remove
 task build      # build images
 task pull       # pull images
@@ -365,18 +389,21 @@ every action **pinned to a commit SHA** and per-ref concurrency:
 - generates a **CycloneDX SBOM** per image, uploaded as an artifact
 
 **`stack-test` job**
+- first asserts the stack **fails closed**: Portainer must refuse to start without its secret
 - boots the hardened stack **with the observability profile** via `docker compose up -d --wait`,
   so every healthcheck becomes a CI assertion
-- probes the web and observability endpoints, then runs the built `dockerctl` image against the
-  runner's live Docker socket
+- probes the web and observability endpoints, checks that the generated admin passwords work
+  and `admin:admin` does not, waits for every Prometheus target and for cAdvisor's
+  per-container series, then runs the built `dockerctl` image against the runner's live
+  Docker socket
 
 **`publish` job** (pushes to `main` only)
 - pushes both images to **GHCR** tagged `latest` + short commit SHA, built **multi-arch**
   (`linux/amd64` + `linux/arm64`) with BuildKit provenance and SBOM attestations
 - signs each image with **cosign** (keyless, OIDC)
 
-[Dependabot](.github/dependabot.yml) keeps GitHub Actions, pip, and both
-Dockerfiles updated weekly.
+[Dependabot](.github/dependabot.yml) keeps GitHub Actions, pip, both
+Dockerfiles, and the digest-pinned compose images updated weekly.
 
 ---
 
@@ -414,6 +441,9 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.1
 |---------|-----|
 | `task: command not found` | Install Task, or use the `docker compose …` equivalents above. |
 | Port already in use | Change the port in `compose/.env` and re-run `task up`. |
+| `bind source path does not exist: …/compose/secrets/…` | Run `task secrets` (or `scripts/gen-secrets.sh`) before `up`. |
+| Admin password from `compose/secrets/` is rejected | Grafana and Portainer read it only when their data volume is first created. Reset it in the UI, or `task clean` to start over. |
+| Services unreachable from another machine | Ports bind to `127.0.0.1` by default; set `WEB_BIND_ADDR` / `ADMIN_BIND_ADDR` in `compose/.env`. |
 | Page looks unstyled | Hard-refresh; `web/index.html` is mounted live (no rebuild needed). |
 | `dockerctl: command not found` | Run `pip install -e cli` first. |
 | Permission denied on docker socket | Add your user to the `docker` group, or run with `sudo`. |

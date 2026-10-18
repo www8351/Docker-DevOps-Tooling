@@ -16,15 +16,29 @@ tasks:
       - task --list
     silent: true
 
-  up:
-    desc: Start the full stack in the background
+  secrets:
+    desc: Generate missing admin password files under compose/secrets/
     cmds:
-      - docker compose up -d
+      - sh scripts/gen-secrets.sh
 
-  down:
-    desc: Stop the stack and remove containers
+  up:
+    desc: Start the stack in the background and wait until it is healthy
+    deps: [secrets]
     cmds:
-      - docker compose down
+      - docker compose up -d --wait
+
+  obs:up:
+    desc: Start the stack plus the observability profile and wait for health
+    deps: [secrets]
+    cmds:
+      - docker compose --profile observability up -d --wait
+
+  # down and clean name the observability profile so its containers and
+  # volumes go too; without it compose leaves profiled services running.
+  down:
+    desc: Stop the stack (observability profile included) and remove containers
+    cmds:
+      - docker compose --profile observability down
 
   build:
     desc: Build all images in the suite (counter + the profiled dockerctl CLI)
@@ -42,9 +56,9 @@ tasks:
       - docker compose logs -f
 
   clean:
-    desc: Stop the stack and remove its volumes
+    desc: Stop the stack (observability profile included) and remove its volumes
     cmds:
-      - docker compose down --volumes
+      - docker compose --profile observability down --volumes
 
   test:
     desc: Run the dockerctl unit test suite

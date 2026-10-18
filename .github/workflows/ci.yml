@@ -23,6 +23,12 @@ jobs:
       - name: Validate compose file
         run: docker compose -f compose/docker-compose.yml config --quiet
 
+      - name: Assert published ports bind to loopback by default
+        run: |
+          docker compose -f compose/docker-compose.yml --profile observability --profile tools \
+            config --format json \
+            | python3 -c "import json,sys; s=json.load(sys.stdin)['services']; p=[(n,x) for n,v in s.items() for x in v.get('ports',[])]; bad=[n for n,x in p if x.get('host_ip')!='127.0.0.1']; print('published:', len(p), 'off loopback:', bad); sys.exit(1 if bad or not p else 0)"
+
       - name: Lint counter Dockerfile (hadolint)
         uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
         with:
@@ -87,6 +93,12 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
+      # The image job is the first place the built venv meets its runtime
+      # interpreter; prove the entrypoint actually imports before scanning.
+      - name: Smoke-run the dockerctl image
+        if: matrix.name == 'dockerctl'
+        run: docker run --rm dockerctl:ci version
+
       - name: Scan ${{ matrix.name }} image (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -122,9 +134,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Boot the hardened stack + observability profile (healthchecks gate)
+      # Admin passwords have no defaults: without the secret files the
+      # services that need them must refuse to start, and for that reason
+      # (not a pull or network error).
+      - name: Assert the stack fails closed without admin secrets
         run: |
           cp compose/.env.example compose/.env
+          compose="docker compose -f compose/docker-compose.yml --profile observability"
+          $compose pull --quiet portainer grafana
+          for svc in portainer grafana; do
+            if out=$($compose up -d --no-deps "$svc" 2>&1); then
+              echo "$svc started without its admin secret" >&2
+              exit 1
+            fi
+            echo "$out" | grep -q "secrets/${svc}_admin_password" \
+              || { echo "$svc failed for another reason: $out" >&2; exit 1; }
+            [ -z "$($compose ps -q "$svc")" ] || { echo "$svc container is running" >&2; exit 1; }
+            echo "$svc refused to start without compose/secrets/${svc}_admin_password"
+          done
+          $compose down -v
+
+      - name: Boot the hardened stack + observability profile (healthchecks gate)
+        run: |
+          scripts/gen-secrets.sh
           docker compose -f compose/docker-compose.yml --profile observability up -d --wait --wait-timeout 180
 
       - name: Probe web endpoints
@@ -136,10 +168,41 @@ jobs:
         run: |
           curl -fsS -o /dev/null -w 'prometheus /-/healthy -> %{http_code}\n' http://localhost:9090/-/healthy
           curl -fsS -o /dev/null -w 'grafana /api/health -> %{http_code}\n' http://localhost:3000/api/health
+          # The admin password is the generated secret, and admin/admin is refused.
+          curl -fsS -o /dev/null -w 'grafana /api/user with secret -> %{http_code}\n' \
+            -u "admin:$(cat compose/secrets/grafana_admin_password)" http://localhost:3000/api/user
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -u admin:admin http://localhost:3000/api/user)
+          echo "grafana /api/user with admin:admin -> $code"
+          [ "$code" = "401" ]
+
+      - name: Probe Portainer admin provisioning
+        run: |
+          # The admin account exists from the first start; no setup page to claim.
+          jq -n --rawfile p compose/secrets/portainer_admin_password '{username: "admin", password: $p}' \
+            | curl -fsS -X POST -H 'Content-Type: application/json' -d @- http://localhost:9000/api/auth \
+            | jq -e 'has("jwt")' >/dev/null
+          echo "portainer /api/auth with secret -> jwt"
           # Scrape pipeline actually works: every prometheus target reports up.
-          sleep 20
-          curl -fsS http://localhost:9090/api/v1/targets \
-            | python3 -c "import json,sys; t=json.load(sys.stdin)['data']['activeTargets']; bad=[x['labels']['job'] for x in t if x['health']!='up']; print('targets:', len(t), 'down:', bad); sys.exit(1 if bad or not t else 0)"
+          scripts/wait-prom-targets.sh http://localhost:9090 120
+
+      # cAdvisor runs with /sys as its only mount and no engine socket; prove
+      # that is still enough to attribute metrics to individual containers.
+      - name: Assert cAdvisor sees containers without engine sockets
+        run: |
+          cadvisor=$(docker compose -f compose/docker-compose.yml ps -q cadvisor)
+          mounts=$(docker inspect -f '{{range .Mounts}}{{.Source}} {{end}}' "$cadvisor")
+          echo "cadvisor mounts: $mounts"
+          [ "$mounts" = "/sys " ] || { echo "unexpected cadvisor mounts" >&2; exit 1; }
+          cid=$(docker compose -f compose/docker-compose.yml ps -q nginx | cut -c1-12)
+          for _ in $(seq 1 20); do
+            n=$(curl -fsS http://localhost:9090/api/v1/query \
+                  --data-urlencode "query=count(container_memory_working_set_bytes{container_id=\"$cid\"})" \
+                | python3 -c "import json,sys; r=json.load(sys.stdin)['data']['result']; print(r[0]['value'][1] if r else 0)")
+            if [ "$n" != "0" ]; then echo "nginx $cid memory series: $n"; exit 0; fi
+            sleep 3
+          done
+          echo "no cAdvisor series for nginx container $cid" >&2
+          exit 1
 
       - name: Show stack state
         run: docker compose -f compose/docker-compose.yml ps
