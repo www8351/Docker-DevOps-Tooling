@@ -33,13 +33,29 @@ cosign verify \
   ghcr.io/www8351/docker-devops-tooling/dockerctl:latest
 ```
 
+Signatures are made by the shared publish workflow, so the certificate
+identity is `https://github.com/www8351/Docker-DevOps-Tooling/.github/workflows/_publish.yml@<ref>`
+(`refs/heads/main` for `latest`, `refs/tags/vX.Y.Z` for releases); the
+regexp above matches both. To pin a release exactly, use
+`--certificate-identity` with the full value.
+
 ## Existing posture
 
 - Multi-stage images on minimal Alpine bases, running as a fixed non-root
   user (UID/GID 10001); build toolchains never reach runtime stages.
-- Trivy scans gate CI on fixable HIGH/CRITICAL findings; a CycloneDX SBOM is
-  generated for every image build, and pushed images carry BuildKit
-  provenance (`mode=max`) and SBOM attestations, signed with cosign.
+- Trivy scans gate CI on fixable HIGH/CRITICAL findings and report to code
+  scanning. Publishing pushes by digest, scans that exact digest on every
+  platform, signs it with cosign, and only then moves tags, checking that
+  each tag resolves to the scanned digest. Pushed images carry BuildKit
+  provenance (`mode=max`) and SBOM attestations, and a CycloneDX SBOM is
+  generated for every CI image build.
+- Releases run the full CI suite on the tagged commit before anything is
+  published; prereleases never move `latest`.
+- Python dependencies are locked with hashes in `cli/uv.lock`; CI, the
+  image build and the pre-commit hooks all install from it. Dependabot
+  waits 7 days after an upstream release before proposing it.
+- CodeQL analyses the Python code and the workflows; actionlint and zizmor
+  check every workflow change.
 - Images are published multi-arch (linux/amd64, linux/arm64).
 - CI boots the full hardened stack on every push — healthchecks and live
   endpoint probes gate the merge.
@@ -63,7 +79,8 @@ cosign verify \
   process, Portainer, and cAdvisor (with no capabilities and only `/sys`
   mounted read-only). Everything else runs as a fixed non-root user.
 - All GitHub Actions are pinned to full commit SHAs and run under
-  least-privilege workflow permissions.
+  least-privilege workflow permissions, with job timeouts and no checkout
+  persisting its token.
 
 ## Known design decision, not a vulnerability
 

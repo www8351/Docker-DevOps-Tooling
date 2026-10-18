@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `metrics` and `mgmt`; counter and dockerctl run without a network.
 - nginx runs unprivileged (UID 101, no capabilities); Portainer gains a
   read-only root filesystem.
+- **Publishing scans what it ships.** A shared `_publish.yml` pushes by digest,
+  scans that digest on both platforms with Trivy, signs it, and only then
+  moves tags (verifying each resolves to the signed digest). Before, tags
+  moved at push time and the arm64 image was never scanned.
+- **Releases are gated.** `release.yml` checks the tag against the package
+  version and changelog, runs the full CI suite on the tagged commit, and
+  no longer tags prereleases `latest`.
+- **Locked dependencies.** `cli/uv.lock` pins every Python dependency with
+  hashes; CI, the image and the hooks install from it.
+- Workflows: actionlint and zizmor in CI, CodeQL for Python and Actions,
+  Trivy SARIF to code scanning, job timeouts, no persisted checkout tokens,
+  and a 7 day Dependabot cooldown.
 
 ### Added
 
@@ -37,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI asserts loopback binding, fail-closed startup without secrets, working
   admin secrets, and per-container cAdvisor metrics;
   `scripts/wait-prom-targets.sh` replaces a fixed sleep.
+- CI `test` matrix (Python 3.12, 3.13, 3.14), `workflow-lint` job, and a
+  `publish-dry-run` job that runs the full publish against a local registry
+  on every pull request.
+- Taskfile `lock`, `scan` and `sbom`; pre-commit gains actionlint and zizmor.
 
 ### Changed
 
@@ -57,8 +73,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - counter moves to Alpine 3.24 with a heartbeat healthcheck
   (`counter.sh --healthcheck`) that fails when the loop stalls; the old
   `pgrep` probe always matched docker-init and could never fail.
-- dockerctl builds its venv and runs it on one shared, digest-pinned
-  `python:3.13-alpine3.24` base, and pip no longer ships in the image.
+- dockerctl builds its venv from `cli/uv.lock` and runs it on one shared,
+  digest-pinned `python:3.14-alpine3.24` base, and pip no longer ships in the
+  image. Both images run as the numeric user `10001:10001`.
+- **Breaking:** Python 3.10 is no longer supported (`requires-python >=3.11`).
+- CI runs on pull requests and pushes to `main` only (not on every branch
+  push), and never cancels a run on `main`. Pre-commit ruff and mypy run from
+  the lockfile; Dependabot tracks `uv` instead of `pip`.
+- Dependency floors: typer ≥ 0.27.3, mypy ≥ 2.4.0, ruff ≥ 0.17.0,
+  setuptools ≥ 84.0.0. GitHub Actions bumped to their latest releases.
 
 ## [0.2.1] - 2026-07-02
 

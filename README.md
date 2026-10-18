@@ -8,7 +8,7 @@
 [![CI](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml)
 [![Release](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml)
 [![GHCR](https://img.shields.io/badge/GHCR-images-2496ED?logo=docker&logoColor=white)](https://github.com/www8351?tab=packages&repo_name=Docker-DevOps-Tooling)
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Typer](https://img.shields.io/badge/CLI-Typer-009688)
 ![mypy](https://img.shields.io/badge/mypy-strict-blue)
 ![coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25_gated-brightgreen)
@@ -147,7 +147,8 @@ flowchart TD
 | Tool | Why | Install |
 |------|-----|---------|
 | Docker Engine + Compose v2 | run the stack | <https://docs.docker.com/get-docker/> |
-| Python ≥ 3.10 | run `dockerctl` | <https://www.python.org/> |
+| Python ≥ 3.11 | run `dockerctl` | <https://www.python.org/> |
+| uv (recommended) | locked dev environment, pre-commit hooks | <https://docs.astral.sh/uv/> |
 | Task (optional) | task runner | <https://taskfile.dev/installation/> |
 
 > Without Task installed, every command has a raw `docker compose` equivalent shown below.
@@ -243,7 +244,7 @@ the build toolchain never reaches the final image, and neither does root.
 | Image | Source | Base | Multi-stage layout | Runs as |
 |-------|--------|------|--------------------|---------|
 | `counter` | [`images/counter/`](images/counter/) | `alpine:3.24` (digest pinned) | `lint` (shellcheck gate) → `runtime` | non-root `app` (UID 10001) |
-| `dockerctl` | [`cli/`](cli/) | `python:3.13-alpine3.24` (digest pinned) | `builder` (venv) → `runtime`, one shared base | non-root `app` (UID 10001) |
+| `dockerctl` | [`cli/`](cli/) | `python:3.14-alpine3.24` (digest pinned) | `builder` (venv from `uv.lock`) → `runtime`, one shared base | non-root `app` (UID 10001) |
 
 ### 🔢 `counter` from 78 MB of attack surface to a few MB
 
@@ -288,9 +289,12 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 
 **Hardening choices**
 - **Builder/runtime split on one base** both stages start from the same digest-pinned
-  `python:3.13-alpine3.24` image, because a venv only works with the interpreter and libc it was
-  built for. The `builder` installs the project into `/opt/venv`; the runtime copies only that venv.
-  pip is removed from the venv and from the runtime interpreter, so it never ships.
+  `python:3.14-alpine3.24` image, because a venv only works with the interpreter and libc it was
+  built for. The runtime copies only the venv; pip is removed from the runtime interpreter and
+  the venv never had it, so it never ships.
+- **Locked dependencies** the `builder` installs exactly what [`cli/uv.lock`](cli/uv.lock) pins
+  (hash-checked) with uv from its own digest-pinned image, in a layer that only rebuilds when the
+  lock changes; uv itself never reaches the runtime.
 - **Minimal runtime** the shared base plus only `docker-cli` (the client, not a daemon),
   because `dockerctl` shells out to `docker` (see [`cli/dockerctl/_docker.py`](cli/dockerctl/_docker.py)).
 - **Non-root `app` user** and a lean build context via [`cli/.dockerignore`](cli/.dockerignore)
@@ -313,7 +317,8 @@ A small **non-interactive** CLI for the dynamic operations compose shouldn't own
 Every command returns a meaningful **exit code** and writes errors to stderr.
 
 ```bash
-pip install -e cli            # installs the `dockerctl` command
+cd cli && uv sync --locked    # locked environment with the `dockerctl` command (uv run dockerctl …)
+pip install -e cli            # or: plain pip, resolving unpinned versions
 ```
 
 ```bash
@@ -345,7 +350,8 @@ dockerctl --version           # or -V, or the `version` subcommand
 </details>
 
 The CLI is **mypy-strict clean** and its test suite is **coverage-gated at
-90%** (currently 100%); the version is single-sourced from `pyproject.toml`.
+90%** (currently 100%), tested on Python 3.11 to 3.14; the version is single-sourced from
+`pyproject.toml` and every dependency is locked in `cli/uv.lock`.
 
 ---
 
@@ -371,25 +377,32 @@ task cli -- images pull nginx:latest   # proxy to dockerctl
 
 ## 🤖 Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request
-**fully unattended, nothing prompts** under least-privilege permissions with
-every action **pinned to a commit SHA** and per-ref concurrency:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request and every push
+to `main`, **fully unattended**, under least-privilege permissions, with every action **pinned to
+a commit SHA**, a timeout on every job, and no checkout keeping its token:
 
-**`lint` job**
-1. ✅ **Compose** — `docker compose config` validates the stack
-2. 🐳 **Dockerfiles** — `hadolint` lints both `images/counter/Dockerfile` and `cli/Dockerfile`
-3. 🐚 **Shell** — `shellcheck` on shell scripts
-4. 🐍 **Python** — `ruff` lint + format check
-5. 🔍 **Types** — `mypy` in strict mode
-6. 📦 **Tests** — `pytest` with a 90% coverage gate
+**`lint` job** (Python 3.11, the oldest supported)
+1. ✅ **Compose** `docker compose config` validates the stack, and every published port must bind to loopback
+2. 🐳 **Dockerfiles** `hadolint` lints both `images/counter/Dockerfile` and `cli/Dockerfile`
+3. 🐚 **Shell** `shellcheck` on shell scripts
+4. 🐍 **Python** `ruff` lint + format check, from the exact versions in `cli/uv.lock`
+5. 🔍 **Types** `mypy` in strict mode
+6. 📦 **Tests** `pytest` with a 90% coverage gate
+
+**`test` job** runs the same locked suite on Python 3.12, 3.13 and 3.14.
+
+**`workflow-lint` job** runs `actionlint` (with shellcheck on every `run:` block) and
+`zizmor`'s security audits of the workflows, including its online checks for known-vulnerable or
+impostor action commits.
 
 **`image` job** (matrix: counter, dockerctl)
-- builds via buildx with GitHub Actions **layer caching**
-- scans with **Trivy** (gates HIGH/CRITICAL, `ignore-unfixed`)
+- builds via buildx with GitHub Actions **layer caching** and runs the dockerctl entrypoint
+- scans with **Trivy** (gates HIGH/CRITICAL, `ignore-unfixed`) and uploads the findings to
+  **code scanning** as SARIF
 - generates a **CycloneDX SBOM** per image, uploaded as an artifact
 
 **`stack-test` job**
-- first asserts the stack **fails closed**: Portainer must refuse to start without its secret
+- first asserts the stack **fails closed**: Portainer and Grafana must refuse to start without their secrets
 - boots the hardened stack **with the observability profile** via `docker compose up -d --wait`,
   so every healthcheck becomes a CI assertion
 - probes the web and observability endpoints, checks that the generated admin passwords work
@@ -397,21 +410,32 @@ every action **pinned to a commit SHA** and per-ref concurrency:
   per-container series, then runs the built `dockerctl` image against the runner's live
   Docker socket
 
-**`publish` job** (pushes to `main` only)
-- pushes both images to **GHCR** tagged `latest` + short commit SHA, built **multi-arch**
-  (`linux/amd64` + `linux/arm64`) with BuildKit provenance and SBOM attestations
-- signs each image with **cosign** (keyless, OIDC)
+**`publish` job** (pushes to `main` only) calls the shared
+[`_publish.yml`](.github/workflows/_publish.yml), which never tags anything it has not checked:
+1. builds `linux/amd64` + `linux/arm64` with BuildKit provenance and SBOM attestations and pushes
+   **by digest only**
+2. scans **that digest on both platforms** with Trivy
+3. signs the digest with **cosign** (keyless, OIDC)
+4. points `latest` + the short commit SHA at it and fails unless every tag resolves to the scanned digest
 
-[Dependabot](.github/dependabot.yml) keeps GitHub Actions, pip, both
-Dockerfiles, and the digest-pinned compose images updated weekly.
+On pull requests, **`publish-dry-run`** runs the same workflow against a throwaway local registry
+(no signing), so a broken publish fails the PR instead of `main`.
+[`codeql.yml`](.github/workflows/codeql.yml) analyses the Python code and the workflows.
+
+[Dependabot](.github/dependabot.yml) keeps GitHub Actions (one grouped PR), `cli/uv.lock`, both
+Dockerfiles (including the pinned uv stage), and the digest-pinned compose images updated
+weekly, each waiting 7 days after a release before proposing it.
 
 ---
 
 ## 🚢 Releases & published images
 
-Tagging `vX.Y.Z` (matching `cli/pyproject.toml` — the workflow asserts it)
-fires [`release.yml`](.github/workflows/release.yml): multi-arch, cosign-signed,
-semver-tagged images on GHCR plus an auto-generated GitHub Release. The current
+Tagging `vX.Y.Z` fires [`release.yml`](.github/workflows/release.yml). It first checks the tag
+against `cli/pyproject.toml` (and, for stable releases, that `CHANGELOG.md` has its section), then
+runs the **whole CI suite** on the tagged commit, then publishes through the same scan, sign and
+tag workflow as `main`: multi-arch, cosign-signed, semver-tagged images on GHCR plus a GitHub
+Release. Tags with a prerelease part (`v0.3.0-rc.1`) are marked as prereleases and never move
+`latest` or `major.minor`. The current
 released version is **0.2.1**. Curated notes live in
 [CHANGELOG.md](CHANGELOG.md).
 
@@ -445,7 +469,7 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.1
 | Admin password from `compose/secrets/` is rejected | Grafana and Portainer read it only when their data volume is first created. Reset it in the UI, or `task clean` to start over. |
 | Services unreachable from another machine | Ports bind to `127.0.0.1` by default; set `WEB_BIND_ADDR` / `ADMIN_BIND_ADDR` in `compose/.env`. |
 | Page looks unstyled | Hard-refresh; `web/index.html` is mounted live (no rebuild needed). |
-| `dockerctl: command not found` | Run `pip install -e cli` first. |
+| `dockerctl: command not found` | Run `cd cli && uv sync --locked` and use `uv run dockerctl …` (or `pip install -e cli`). |
 | Permission denied on docker socket | Add your user to the `docker` group, or run with `sudo`. |
 | `dockerctl` container can't reach the socket | The image is non-root; grant it the socket's group: `docker run --group-add "$(stat -c '%g' /var/run/docker.sock)" …` |
 | A service is unhealthy / crash-looping | Check `docker compose ps` + `task logs`; the stack runs read-only see the tmpfs lists in the compose file. |

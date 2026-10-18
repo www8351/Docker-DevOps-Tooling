@@ -10,8 +10,8 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ### Next action: Phase 2, CI and supply chain
 
-Issue:  Phase 2 of the 0.3.0 roadmap (Track B) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at b0ca5ed.
-Action: Ship commits 2.1 to 2.14, open a draft PR, drive CI green, stop for owner merge.
+Issue:  Phase 2 of the 0.3.0 roadmap (Track B) is complete on branch ccr-1ddb6a39-8xlw9d as draft PR #72.
+Action: Drive CI green on the final head, then stop for owner merge. Phase 3 (CLI correctness, compose group #14) follows.
 Status: IN PROGRESS
 
 ### Security and correctness
@@ -59,6 +59,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  README, SECURITY.md and CHANGELOG still described per-branch CI, pip installs, Python 3.10, the old publish and an ungated release.
+Action: README: Python 3.11+ badge and requirement, uv, lockfile based dockerctl build, CI section with lint, test, workflow-lint, image SARIF, stack-test, shared publish steps and dry run, CodeQL, Dependabot with cooldown, gated release flow. SECURITY.md: cosign identity now _publish.yml@ref (existing regexp still matches), publish order, gated releases, lockfile, CodeQL and workflow linting. CHANGELOG Unreleased gains Security, Added and Changed entries including the Python 3.10 drop as breaking.
+Status: DONE
 
 Issue:  The dockerctl image ran Python 3.13; the 3.14 move had been deferred until the venv and typer were verified on 3.14.
 Action: Base moved to python:3.14-alpine3.24 pinned by index digest f6a589d4 (3.14.8). Evidence: CI test (3.14) leg passed on 4ee0dd8; local simulation of the uv builder on the pinned 3.14 base: Python 3.14.8, dockerctl version 0.2.1, --help renders, missing docker binary handled. The CI image job smoke run confirms the built image.
