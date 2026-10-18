@@ -107,22 +107,26 @@ services:
 
   # Custom image built from ../images/counter (was lab2 Dockerfile + counter.sh).
   # `init: true` so the sleep loop gets a proper PID 1 and honors SIGTERM.
+  # The healthcheck reads the loop's heartbeat file (on the /tmp tmpfs), so a
+  # stalled loop turns the container unhealthy. It needs no network at all.
   counter:
     build:
       context: ../images/counter
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f counter.sh"]
-      interval: 30s
+      test: ["CMD", "/usr/local/bin/counter.sh", "--healthcheck"]
+      interval: 15s
       timeout: 5s
       retries: 3
       start_period: 10s
     init: true
     read_only: true
+    tmpfs:
+      - /tmp
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [web]
+    network_mode: none
     logging: *default-logging
     deploy:
       resources:
