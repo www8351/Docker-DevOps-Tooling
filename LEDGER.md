@@ -60,6 +60,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  The dockerctl image ran Python 3.13; the 3.14 move had been deferred until the venv and typer were verified on 3.14.
+Action: Base moved to python:3.14-alpine3.24 pinned by index digest f6a589d4 (3.14.8). Evidence: CI test (3.14) leg passed on 4ee0dd8; local simulation of the uv builder on the pinned 3.14 base: Python 3.14.8, dockerctl version 0.2.1, --help renders, missing docker binary handled. The CI image job smoke run confirms the built image.
+Status: DONE
+
 Issue:  release.yml pushed and signed on any v* tag without lint, tests or a scan, tagged latest on prereleases, and only compared the tag string to pyproject.toml.
 Action: release.yml now runs guard (packaging normalised tag vs cli/pyproject.toml, stable tags need a CHANGELOG section), then the whole ci.yml via workflow_call with the union of nested permissions, then _publish.yml in release mode, then gh release create with --prerelease for tags containing a dash. Local guard runs: v0.2.1 matches 0.2.1; v0.3.0, v0.2.1-rc.1, v0.2.2 rejected; v0.3.0-rc.1 matches 0.3.0rc1 without a changelog section; stable v0.3.0 rejected without its section and accepted with it. actionlint clean, zizmor No findings. The tag path itself only runs on a real tag; an owner pushed v0.3.0-rc.1 after Phase 4 would exercise it without moving latest.
 Status: DONE
