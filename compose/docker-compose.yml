@@ -89,15 +89,23 @@ services:
   # Docker management UI, replacing the dead abh1nav/dockerui.
   # No healthcheck: portainer-ce is scratch-based (no shell, wget, or curl),
   # so there is no exec probe to run; `restart: unless-stopped` covers crashes.
-  # The socket stays read-write on purpose — Portainer manages the engine.
+  # The socket stays read-write on purpose: Portainer manages the engine.
+  # The admin account is created from a secret file on first start, so the
+  # setup page can never be claimed by whoever reaches it first. Like
+  # Grafana, it is only read when portainer_data is new.
   portainer:
     image: portainer/portainer-ce:2.39.8@sha256:da7f74b74c7f37c50d2ebd3db4c6bcfdbf2fe9ca1e8b4c6c0203e39fde1fd249
+    command: ["--admin-password-file", "/run/secrets/portainer_admin_password"]
     ports:
       - "${ADMIN_BIND_ADDR:-127.0.0.1}:${PORTAINER_PORT:-9000}:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
+    secrets: [portainer_admin_password]
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -308,6 +316,8 @@ networks:
 secrets:
   grafana_admin_password:
     file: ./secrets/grafana_admin_password
+  portainer_admin_password:
+    file: ./secrets/portainer_admin_password
 
 volumes:
   portainer_data:

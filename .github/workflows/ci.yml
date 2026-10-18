@@ -134,9 +134,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Boot the hardened stack + observability profile (healthchecks gate)
+      # Admin passwords have no defaults: without the secret files the
+      # services that need them must refuse to start.
+      - name: Assert the stack fails closed without admin secrets
         run: |
           cp compose/.env.example compose/.env
+          if docker compose -f compose/docker-compose.yml up -d portainer; then
+            echo "portainer started without its admin secret" >&2
+            exit 1
+          fi
+          docker compose -f compose/docker-compose.yml down -v
+
+      - name: Boot the hardened stack + observability profile (healthchecks gate)
+        run: |
           scripts/gen-secrets.sh
           docker compose -f compose/docker-compose.yml --profile observability up -d --wait --wait-timeout 180
 
@@ -155,6 +165,14 @@ jobs:
           code=$(curl -sS -o /dev/null -w '%{http_code}' -u admin:admin http://localhost:3000/api/user)
           echo "grafana /api/user with admin:admin -> $code"
           [ "$code" = "401" ]
+
+      - name: Probe Portainer admin provisioning
+        run: |
+          # The admin account exists from the first start; no setup page to claim.
+          jq -n --rawfile p compose/secrets/portainer_admin_password '{username: "admin", password: $p}' \
+            | curl -fsS -X POST -H 'Content-Type: application/json' -d @- http://localhost:9000/api/auth \
+            | jq -e 'has("jwt")' >/dev/null
+          echo "portainer /api/auth with secret -> jwt"
           # Scrape pipeline actually works: every prometheus target reports up.
           scripts/wait-prom-targets.sh http://localhost:9090 120
 

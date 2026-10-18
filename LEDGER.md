@@ -20,10 +20,6 @@ Issue:  Compose images are pinned literally by digest but not yet tracked by Dep
 Action: Phase 2.12. Add the docker-compose ecosystem to .github/dependabot.yml.
 Status: OPEN
 
-Issue:  Portainer first run admin page can be claimed by whoever reaches it first (#13, closed as completed without code).
-Action: Phase 1.8. --admin-password-file from a compose secret.
-Status: OPEN
-
 Issue:  CLI passes positional arguments without a -- separator. containers deploy runs containers with none of the repo hardening.
 Action: Phase 3.3 and 3.4 (D12).
 Status: OPEN
@@ -107,6 +103,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Portainer first run admin page could be claimed by whoever reached it first (#13, closed as completed without code). Portainer also had no read-only rootfs.
+Action: Implements #13. Portainer runs with --admin-password-file from a compose secret, read_only true and tmpfs /tmp. stack-test asserts portainer refuses to start without the secret, then that POST /api/auth with the secret returns a jwt. Local: fail-closed refused, auth with secret returns jwt, wrong password 422, no errors in the log under read_only.
+Status: DONE
 
 Issue:  Grafana admin password defaulted to admin.
 Action: scripts/gen-secrets.sh creates 32 character password files under gitignored compose/secrets (dir 0700, files 0644 so Grafana UID 472 can read). Grafana reads GF_SECURITY_ADMIN_PASSWORD__FILE from a compose secret, no default. Taskfile gains secrets, obs:up, obs:down; up waits for health. stack-test generates secrets and asserts 200 with the secret and 401 with admin:admin. Local: config valid without secret files, up grafana without the file fails with bind source path does not exist, /api/user with secret 200, with admin:admin 401.
