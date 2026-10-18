@@ -8,15 +8,19 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 3, CLI correctness and compose group
+### Next action: Phase 4, Helm chart on kind
 
-Issue:  Phase 3 of the 0.3.0 roadmap (Track A code plus #14) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 4d99cfc.
-Action: Ship commits 3.1 to 3.7, open a draft PR, drive CI green, stop for owner merge.
+Issue:  Phase 4 of the 0.3.0 roadmap (#12) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 8aa5aa9.
+Action: Ship commits 4.1 to 4.5, open a draft PR, drive CI green, stop for owner merge.
 Status: IN PROGRESS
 
 ### Security and correctness
 
 ### CI and reproducibility
+
+Issue:  Every astral-sh/setup-uv step resolves the latest uv (0.13.1 in the Phase 3 runs) while cli/Dockerfile pins uv 0.11.32, so CI and the image can drift.
+Action: Pin a uv version in the setup-uv steps, or record why not. Raised in the PR #77 body; not yet decided.
+Status: OPEN
 
 ### Code quality
 
@@ -47,6 +51,14 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Phase 3 PR #77.
+Action: Owner merged PR #77 into main as 8aa5aa9 (head 87f7526, all 14 run checks green, publish skipped). main also carries 09e8956, Dependabot PR #76 (actions/upload-artifact 7.0.1 to 7.0.2). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease.
+Status: DONE
+
+Issue:  Phase 4 needs helm, kind, kubectl and kubeconform locally; GitHub release downloads and get.helm.sh are blocked here.
+Action: Installed through the Go module proxy: helm v4.3.1, kind v0.33.0, kubeconform v0.8.0; kubectl v1.37.1 from dl.k8s.io with its sha256 verified. kind cannot run in this container: the host is cgroup v1, and even with failCgroupV1 false runc fails inside the node ("can't get final child's PID from pipe: EOF"). The chart is validated locally with helm lint, helm template and kubeconform, and each container is run under docker with the chart's user, read-only root and dropped capabilities; the kind install runs in CI only.
+Status: DONE
 
 Issue:  lint, test (3.12), test (3.13) and test (3.14) failed on 80ab2c7: 5 failed, 70 passed. The new --no-harden usage error test looked for --no-harden in stderr, but typer forces rich colour when GITHUB_ACTIONS is set, and the ANSI codes split the flag name ("\x1b[1;33mUsage: ..." in the log). Not visible locally without that variable.
 Action: Reproduced with GITHUB_ACTIONS=true (same 5 failed). Added plain() to tests/conftest.py to drop ANSI codes; the test now asserts "Invalid value for '--no-harden'" and "cannot be combined with <flag>" on the plain text. Local: 75 passed with and without GITHUB_ACTIONS=true (also at COLUMNS=40), coverage 100.00%, ruff and mypy clean.
