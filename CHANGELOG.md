@@ -7,14 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **No default admin passwords.** Portainer (`--admin-password-file`) and
+  Grafana (`GF_SECURITY_ADMIN_PASSWORD__FILE`) read generated compose secrets
+  from `compose/secrets/` (`scripts/gen-secrets.sh`, `task secrets`). Portainer's
+  open first-run setup page and Grafana's `admin/admin` fallback are gone.
+- **Loopback by default.** Published ports bind to `WEB_BIND_ADDR` /
+  `ADMIN_BIND_ADDR`, both `127.0.0.1` unless overridden.
+- **cAdvisor holds no engine socket.** It mounted `/var/run` (docker.sock and
+  the containerd socket), the host rootfs and `/var/lib/docker`, and kept every
+  capability. It now mounts only `/sys` read-only and drops all capabilities.
+- **Network split.** `nginx-exporter` no longer bridges the public `web` tier to
+  the docker.sock tier: networks are now `web`, internal `nginx-status`,
+  `metrics` and `mgmt`; counter and dockerctl run without a network.
+- nginx runs unprivileged (UID 101, no capabilities); Portainer gains a
+  read-only root filesystem.
+
 ### Added
 
-- **Observability compose profile**: Prometheus (pinned `v3.13.0`, read-only
-  scrape config), Grafana (`12.3.8`, provisioned datasource + committed
-  container dashboard — zero click-ops), cAdvisor, and nginx-prometheus-exporter
-  (via a non-host-mapped `stub_status` endpoint). All four follow the existing
-  hardening baseline. CI boots the profile and fails if any Prometheus target
-  is down.
+- **Observability compose profile**: Prometheus (read-only scrape config),
+  Grafana (provisioned datasource + committed container dashboard), cAdvisor,
+  and nginx-prometheus-exporter (via a non-host-mapped `stub_status`
+  endpoint). CI boots the profile and fails if any Prometheus target is down.
+- Taskfile `secrets`, `obs:up` and `obs:down`; `up` now waits for health.
+- CI asserts loopback binding, fail-closed startup without secrets, working
+  admin secrets, and per-container cAdvisor metrics;
+  `scripts/wait-prom-targets.sh` replaces a fixed sleep.
+
+### Changed
+
+- **Breaking:** the `*_TAG` variables are gone. Every image is pinned by tag
+  and digest directly in `compose/docker-compose.yml`; use an override file to
+  run a different image.
+- **Breaking:** `scripts/gen-secrets.sh` must run before `up`, and services are
+  reachable only on `127.0.0.1` until the bind addresses are changed.
+- **Breaking:** the Grafana dashboard labels containers by short id instead of
+  name, and the per-container network panel is replaced by nginx requests per
+  second.
+- nginx moves to `nginxinc/nginx-unprivileged` 1.30 stable on port 8080;
+  Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
+  nginx-prometheus-exporter to their latest patch releases.
+- counter moves to Alpine 3.24 with a heartbeat healthcheck
+  (`counter.sh --healthcheck`) that fails when the loop stalls; the old
+  `pgrep` probe always matched docker-init and could never fail.
+- dockerctl builds its venv and runs it on one shared, digest-pinned
+  `python:3.13-alpine3.24` base, and pip no longer ships in the image.
 
 ## [0.2.1] - 2026-07-02
 

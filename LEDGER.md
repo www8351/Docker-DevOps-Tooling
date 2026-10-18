@@ -58,8 +58,8 @@ Status: OPEN
 
 ### Documentation
 
-Issue:  README claims every long-running container is read-only and non-root, and that the observability services share the full baseline. Portainer has no read_only, several processes run as root, cAdvisor had no cap_drop. README also claims pip never ships, which is false.
-Action: Phase 1.11 corrects hardening claims. Phase 5.3 refreshes layout, task list, tables, counts.
+Issue:  README layout tree, CLI command counts and remaining tables predate this roadmap.
+Action: Phase 5.3 refreshes layout, counts and the Kubernetes and CI sections.
 Status: OPEN
 
 Issue:  Taskfile has no scan or sbom tasks.
@@ -103,6 +103,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  README claimed every long-running container was read-only and non-root and that the observability services shared the full baseline; pip was said never to ship; SECURITY.md listed only Portainer as a socket holder.
+Action: README intro (English and Hebrew), highlights, console sample (real CI output from run 39140747430), quick start, stack and observability tables (with runs as column), image suite, counter and dockerctl hardening notes, task list, CI section and troubleshooting rewritten to match the stack. SECURITY.md lists socket holders, root services, loopback defaults and the first volume caveat for secrets. CONTRIBUTING.md describes digest pins and secrets. CHANGELOG Unreleased gains Security, Added and breaking Changed entries.
+Status: DONE
 
 Issue:  Portainer first run admin page could be claimed by whoever reached it first (#13, closed as completed without code). Portainer also had no read-only rootfs.
 Action: Implements #13. Portainer runs with --admin-password-file from a compose secret, read_only true and tmpfs /tmp. stack-test asserts portainer refuses to start without the secret, then that POST /api/auth with the secret returns a jwt. Local: fail-closed refused, auth with secret returns jwt, wrong password 422, no errors in the log under read_only.
