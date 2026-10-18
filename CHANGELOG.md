@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **The CLI ends option parsing before every positional argument** (`--`), so
+  a container, image or service name starting with a dash can never be read
+  by docker as a flag.
 - **No default admin passwords.** Portainer (`--admin-password-file`) and
   Grafana (`GF_SECURITY_ADMIN_PASSWORD__FILE`) read generated compose secrets
   from `compose/secrets/` (`scripts/gen-secrets.sh`, `task secrets`). Portainer's
@@ -53,6 +56,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `publish-dry-run` job that runs the full publish against a local registry
   on every pull request.
 - Taskfile `lock`, `scan` and `sbom`; pre-commit gains actionlint and zizmor.
+- **`dockerctl compose up/down/ps`** (#14): stack lifecycle from the CLI. `up`
+  waits for every healthcheck by default; `--file` / `DOCKERCTL_COMPOSE_FILE`
+  pick the compose file and `--profile` is repeatable.
+- `containers deploy` escape hatches: `--cap-add`, `--tmpfs`, `--writable`,
+  `--user`, `--memory`, `--pids-limit`, `--no-harden`. `--no-harden` refuses
+  the hardening options with a usage error instead of ignoring them.
+- CI drives `inspect`, `logs` and `compose ps` against the live stack.
 
 ### Changed
 
@@ -77,6 +87,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   digest-pinned `python:3.14-alpine3.24` base, and pip no longer ships in the
   image. Both images run as the numeric user `10001:10001`.
 - **Breaking:** Python 3.10 is no longer supported (`requires-python >=3.11`).
+- **Breaking:** `containers deploy` is hardened by default (`no-new-privileges`,
+  all capabilities dropped, read-only root filesystem with `/tmp` on tmpfs,
+  `--pids-limit 256`, `--memory 256m`, port bound to `127.0.0.1` unless an
+  address is given, including an empty one as in `:8080:80`). Use the escape
+  hatches or `--no-harden` for images that need more.
+- `task cli` runs from the repository root so `dockerctl compose` finds the
+  stack.
 - CI runs on pull requests and pushes to `main` only (not on every branch
   push), and never cancels a run on `main`. Pre-commit ruff and mypy run from
   the lockfile; Dependabot tracks `uv` instead of `pip`.

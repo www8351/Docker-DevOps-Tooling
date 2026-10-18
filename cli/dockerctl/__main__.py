@@ -1,10 +1,10 @@
-"""dockerctl entrypoint: wires the image and container command groups together."""
+"""dockerctl entrypoint: wires the image, container and compose command groups together."""
 
 from __future__ import annotations
 
 import typer
 
-from . import __version__, containers, images
+from . import __version__, compose, containers, images
 
 app = typer.Typer(
     help="Non-interactive Docker helper for CI/CD pipelines.",
@@ -12,6 +12,7 @@ app = typer.Typer(
 )
 app.add_typer(images.app, name="images")
 app.add_typer(containers.app, name="containers")
+app.add_typer(compose.app, name="compose")
 
 
 def _version_callback(value: bool) -> None:

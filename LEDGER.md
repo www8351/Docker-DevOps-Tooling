@@ -8,25 +8,17 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 2, CI and supply chain
+### Next action: Phase 3, CLI correctness and compose group
 
-Issue:  Phase 2 of the 0.3.0 roadmap (Track B) is complete on branch ccr-1ddb6a39-8xlw9d as draft PR #72.
-Action: Drive CI green on the final head, then stop for owner merge. Phase 3 (CLI correctness, compose group #14) follows.
+Issue:  Phase 3 of the 0.3.0 roadmap (Track A code plus #14) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 4d99cfc.
+Action: Ship commits 3.1 to 3.7, open a draft PR, drive CI green, stop for owner merge.
 Status: IN PROGRESS
 
 ### Security and correctness
 
-Issue:  CLI passes positional arguments without a -- separator. containers deploy runs containers with none of the repo hardening.
-Action: Phase 3.3 and 3.4 (D12).
-Status: OPEN
-
 ### CI and reproducibility
 
 ### Code quality
-
-Issue:  The same try, DockerError, echo, Exit(1) block is copied 16 times across containers.py and images.py. Test helpers are duplicated with no conftest.py.
-Action: Phase 3.1 and 3.2.
-Status: OPEN
 
 ### Documentation
 
@@ -35,10 +27,6 @@ Action: Phase 5.3 refreshes layout, counts and the Kubernetes and CI sections.
 Status: OPEN
 
 ### Features closed as completed without code (milestone v0.3.0)
-
-Issue:  #14 dockerctl compose up, down, ps group does not exist.
-Action: Phase 3.5.
-Status: OPEN
 
 Issue:  #12 Helm chart for nginx, httpd, counter validated on kind does not exist.
 Action: Phase 4.
@@ -59,6 +47,54 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  lint, test (3.12), test (3.13) and test (3.14) failed on 80ab2c7: 5 failed, 70 passed. The new --no-harden usage error test looked for --no-harden in stderr, but typer forces rich colour when GITHUB_ACTIONS is set, and the ANSI codes split the flag name ("\x1b[1;33mUsage: ..." in the log). Not visible locally without that variable.
+Action: Reproduced with GITHUB_ACTIONS=true (same 5 failed). Added plain() to tests/conftest.py to drop ANSI codes; the test now asserts "Invalid value for '--no-harden'" and "cannot be combined with <flag>" on the plain text. Local: 75 passed with and without GITHUB_ACTIONS=true (also at COLUMNS=40), coverage 100.00%, ruff and mypy clean.
+Status: DONE
+
+Issue:  Review of PR #77 at aabc156 found: deploy -p :8080:80 (empty host address) was passed through, publishing on every interface; --no-harden silently dropped --cap-add, --tmpfs, --writable, --memory and --pids-limit; a user --tmpfs /tmp:size=... was mounted next to the default /tmp; the --port help claimed loopback even under --no-harden; the CI inspect step printed health without asserting it; the CI check for compose inside the image accepted any failure; the host compose ps parser only read one JSON object per line. The aabc156 stack-test log also showed the in-image error is "unknown shorthand flag: 'f' in -f" (docker-cli 29.8.2), not the "unknown command" text recorded in the compose group entry below.
+Action: Tests first (8 failed, 67 passed), then fixed: an empty host address gets 127.0.0.1 (:8080:80 to 127.0.0.1:8080:80, ::80 to 127.0.0.1::80); --memory and --pids-limit default to None and resolve to 256m and 256 only when hardened; --no-harden with any hardening option is a usage error (exit 2, "Invalid value for '--no-harden': cannot be combined with ...") before any docker call; a user tmpfs for /tmp replaces the default; help texts corrected. CI asserts State.Health.Status == healthy, requires exit 1 plus a docker usage error match for compose inside the image, and parses compose ps as an array or one object per line. README, CHANGELOG and the compose docstring updated. Local: 75 passed, coverage 100.00%, ruff and mypy clean, actionlint clean, zizmor no findings; the new shell and parser logic simulated for pass and fail inputs. Live: deploy -p :18081:8080 --tmpfs /tmp:size=16m published {"HostIp":"127.0.0.1","HostPort":"18081"}, Tmpfs /tmp size=16m only, ReadonlyRootfs true, Memory 268435456, PidsLimit 256, HTTP 200; --no-harden --pids-limit 64 exited 2.
+Status: DONE
+
+Issue:  stack-test failed on 84e6e30: the new host step ran `dockerctl compose --profile observability ps`, but --profile is an option of each subcommand, so Typer answered No such option: --profile and the service check saw no rows.
+Action: Reproduced locally (same error, exit 2). The step now runs `dockerctl compose ps --profile observability --json`; locally it lists the running services. README notes that --file and --profile follow the subcommand, unlike docker compose.
+Status: DONE
+
+Issue:  README still showed two command groups, a deploy example that cannot run hardened (nginx:latest needs capabilities), and task cli ran from cli/ where the compose default path does not resolve.
+Action: README documents the -- guarantee, the hardened deploy defaults and escape hatches, the compose group (host only, file resolution), and the full reference (3 groups, 19 commands); the deploy example uses nginx-unprivileged. task cli runs from the repo root via uv run --project cli. CHANGELOG Unreleased gains the separator under Security, the compose group and deploy flags under Added, and the hardened deploy as breaking. Local: task cli -- --version 0.2.1, task cli -- compose --help lists up, down, ps.
+Status: DONE
+
+Issue:  First publish on main through the shared _publish.yml after merging #72.
+Action: CI run 39156291406 on 4d99cfc: publish (counter) and publish (dockerctl) both pushed by digest, passed Trivy on linux/amd64 and linux/arm64, signed with cosign and tagged with every tag verified against the signed digest. All other jobs green.
+Status: DONE
+
+Issue:  CI only ran `containers ls` from the dockerctl image, so the -- separator, positional commands and the compose group were never exercised against a real engine.
+Action: stack-test now runs containers inspect --json compose-nginx-1 (asserting name and health) and containers logs --tail 1 compose-counter-1 through the image, asserts dockerctl compose ps fails inside the image (no compose plugin, D13), and runs dockerctl compose --profile observability ps --json on the host via uv, requiring nginx, counter and grafana. Local: the inspect and compose ps parsing ran against a live nginx (inspect -> /compose-nginx-1 healthy, compose ps -> ['nginx']). actionlint clean, zizmor No findings.
+Status: DONE
+
+Issue:  #14 dockerctl compose up, down, ps group did not exist (closed as completed without code).
+Action: Implements #14. New cli/dockerctl/compose.py registered as `dockerctl compose`: up [SERVICES] (-d, --wait by default, --wait-timeout 180, --no-wait), down (--volumes), ps (--all, --json); --file defaults to compose/docker-compose.yml with DOCKERCTL_COMPOSE_FILE override; repeatable --profile; services passed after --. The dockerctl image has no compose plugin (D13), so inside the image these exit 1 with docker's unknown command error. Tests first (collection failed), then implemented: 66 passed, coverage 100.00%, mypy and ruff clean. Live from the repo root: compose up --wait-timeout 90 nginx httpd reached healthy and printed Stack is up; ps and ps --json listed both healthy; a missing file via DOCKERCTL_COMPOSE_FILE exited 1 with compose file is invalid; down --volumes printed Stack is down.
+Status: DONE
+
+Issue:  containers deploy ran containers with none of the repo hardening and published ports on every interface.
+Action: deploy is hardened by default (D12): no-new-privileges, cap-drop ALL, read-only rootfs with /tmp on tmpfs, pids-limit 256, memory 256m, port bound to 127.0.0.1 unless an address is given. Escape hatches --cap-add, --tmpfs, --writable, --user, --memory, --pids-limit, --no-harden. Tests first (6 failed), then implemented. Local: 53 passed, coverage 100.00%. Live: nginx-unprivileged deployed with defaults ran with ReadonlyRootfs true, CapDrop [ALL], no-new-privileges, tmpfs /tmp, PidsLimit 256, Memory 268435456, bound 127.0.0.1:18080, HTTP 200.
+Status: DONE
+
+Issue:  Positional values went straight into docker argv, so a value starting with a dash would be parsed as a docker flag.
+Action: Every docker call in containers.py and images.py now puts -- before its positional arguments. Tests updated first (16 failed), then implemented; new test passes a container named -f through as a name. Local: 46 passed, coverage 100.00%, mypy and ruff clean. Live against docker 29.8.2: images pull, build, tag, push (to a local registry), rm and containers deploy, logs, inspect, stats, exec, restart, stop, start, rm all ok.
+Status: DONE
+
+Issue:  The same try, DockerError, echo to stderr, Exit(1) block was copied 16 times across containers.py (10) and images.py (6).
+Action: New cli/dockerctl/_cli.py with a docker_errors() context manager; every command body now runs under it. Behaviour unchanged. Local: ruff clean, mypy Success no issues in 12 source files, 45 passed, coverage 100.00%.
+Status: DONE
+
+Issue:  Test helpers (_record_calls and boom) were copied into test_containers.py and test_images.py with no conftest.py.
+Action: cli/tests/conftest.py provides runner, record_calls(module, returns) and docker_fails(module, message) fixtures with RecordCalls and DockerFails type aliases; both test modules use them with full annotations. Local: ruff clean, mypy Success no issues in 11 source files, 45 passed, coverage 100.00%.
+Status: DONE
+
+Issue:  Phase 2 PR #72.
+Action: Owner merged PR #72 into main as 4d99cfc (head af32474, all 15 checks green). Branch ccr-1ddb6a39-8xlw9d restarted from main.
+Status: DONE
 
 Issue:  Adversarial review of the phase 2 diff: the dry-run registry service also ran (and was pulled from Docker Hub) for real publishes; major.minor relied on metadata-action alone to skip prereleases; gh release create failed on a re-run once the release existed; main publish did not wait for workflow-lint while releases did; comments overstated main concurrency and test gating; docs still said CI runs on every push.
 Action: Registry now starts in a step gated on dry-run (bound to 127.0.0.1:5000); major.minor explicitly disabled for tags containing a dash; github-release skips when the release exists; publish needs workflow-lint; ci.yml comments state that main runs queue one at a time with a newer merge replacing a waiting one (grouping by sha was rejected because two publishes could race on latest); README and SECURITY.md say pull requests instead of every push. self-repository is a valid zizmor id (zizmor reports 4 ignored). actionlint clean, zizmor No findings.
