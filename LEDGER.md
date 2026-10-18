@@ -8,10 +8,10 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 4, Helm chart on kind
+### Next action: Phase 5, docs, ADRs, demo GIF and release 0.3.0
 
-Issue:  Phase 4 of the 0.3.0 roadmap (#12) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 8aa5aa9.
-Action: Ship commits 4.1 to 4.5, open a draft PR, drive CI green, stop for owner merge.
+Issue:  Phase 5 of the 0.3.0 roadmap (#15, #17, docs accuracy, release prep) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 3d9c57f.
+Action: Ship commits 5.1 to 5.6, open a draft PR, drive CI green, stop for owner merge. The owner pushes the v0.3.0 tag.
 Status: IN PROGRESS
 
 ### Security and correctness
@@ -33,12 +33,12 @@ Status: OPEN
 ### Features closed as completed without code (milestone v0.3.0)
 
 Issue:  #12 Helm chart for nginx, httpd, counter validated on kind does not exist.
-Action: Phase 4.
-Status: OPEN
+Action: Phase 4 shipped deploy/chart and the CI helm job (PR #78, merged as 3d9c57f).
+Status: DONE
 
 Issue:  #15 ADRs in docs/adr do not exist.
-Action: Phase 5.1.
-Status: OPEN
+Action: Phase 5.1 added docs/adr with records 0001 to 0014.
+Status: DONE
 
 Issue:  #17 demo GIF from docs/assets/demo.tape was never rendered or committed.
 Action: Phase 5.2.
@@ -51,6 +51,14 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Phase 4 PR #78.
+Action: Owner merged PR #78 into main as 3d9c57f (head 229e36c, all 15 run checks green including helm, publish skipped). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease. The pending check-in was cancelled.
+Status: DONE
+
+Issue:  #15 ADRs in docs/adr do not exist (Phase 5.1).
+Action: New docs/adr: README index, template.md (context, decision, alternatives, consequences), and records 0001 to 0014: recording decisions, compose owns state, typed non-interactive CLI, multi-stage Alpine non-root images, SHA-pinned actions, Trivy gate on fixable HIGH and CRITICAL, explicit socket holders, cAdvisor without engine sockets (D1), loopback binds (D3), file secrets (D4), uv lock (D7), unprivileged web servers (D9), publish by digest (D11), Helm chart under the restricted profile. Local: every relative link resolves; no em or en dashes.
+Status: DONE
 
 Issue:  helm failed on 8fbd584 at the last assertion: "reached the Kubernetes API: the NetworkPolicy is not enforced". Everything before it passed: the namespace refused a bare pod, the chart installed under enforce=restricted, all three Deployments rolled out, and helm test printed nginx: 200 and httpd: 200. The check was wrong, not the policy: traffic between a pod and its own node is always allowed by the NetworkPolicy model, and on a one-node kind cluster the API server runs on that node.
 Action: Dropped tests.checkNetworkPolicy and the API probe from the chart (values, schema, test pod). CI instead execs into nginx, which may open no connection: a fetch of its own page must succeed (wget and exec work), and a fetch of the httpd pod IP on 8080, the pod the test pod just reached, must fail with a network error (timed out, refused, no route or unreachable). README and Taskfile updated. Local: actionlint clean, zizmor no findings, helm lint --strict passes, kubeconform Valid: 11; busybox wget -T 5 against a DROP rule printed "wget: download timed out" with exit 1 after 5s; the step logic passes on timed out and refused, and fails on success and on exec errors.
