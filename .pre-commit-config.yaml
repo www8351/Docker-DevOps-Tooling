@@ -28,7 +28,7 @@ repos:
       - id: hadolint
         name: hadolint
         language: docker_image
-        entry: hadolint/hadolint:v2.14.0-alpine hadolint
+        entry: hadolint/hadolint:v2.15.1-alpine hadolint
         files: Dockerfile$
 
   - repo: https://github.com/koalaman/shellcheck-precommit

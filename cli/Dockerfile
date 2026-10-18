@@ -67,7 +67,8 @@ RUN apk add --no-cache docker-cli \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-USER app
+# Numeric, so runtimes (and Kubernetes runAsNonRoot) can verify it is not root.
+USER 10001:10001
 
 ENTRYPOINT ["dockerctl"]
 CMD ["--help"]

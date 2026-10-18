@@ -40,7 +40,8 @@ RUN addgroup -S -g 10001 app \
 COPY --from=lint --chown=root:root /src/counter.sh /usr/local/bin/counter.sh
 RUN chmod 0555 /usr/local/bin/counter.sh
 
-USER app
+# Numeric, so runtimes (and Kubernetes runAsNonRoot) can verify it is not root.
+USER 10001:10001
 
 # The loop touches a heartbeat file in /tmp (override with COUNTER_HEARTBEAT);
 # a stale or missing file means the loop has stopped. Compose runs the same

@@ -68,6 +68,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  lint failed on c554a50: hadolint-action v3.5.0 bundles hadolint v2.15.1, which reports DL3066 info: Non-numeric user-id may not be resolvable by host system, on USER app in both Dockerfiles, and the action fails at threshold info.
+Action: Reproduced locally with hadolint/hadolint:v2.15.1-alpine (v2.14.0 does not have the rule). Both Dockerfiles now use USER 10001:10001, which Kubernetes runAsNonRoot also needs to verify a non-root user. Pre-commit hadolint pin moved to v2.15.1. Local: hadolint v2.15.1 with --failure-threshold info clean on both Dockerfiles.
+Status: DONE
+
 Issue:  Pre-commit pinned ruff v0.8.0, mypy v2.1.0 with unpinned stubs and a hadolint beta tag, all drifting from CI; Taskfile installed with pip and had no lock, scan or sbom tasks.
 Action: ruff, ruff format and mypy are local hooks running uv run --locked --project cli --extra dev. hadolint runs from hadolint/hadolint:v2.14.0-alpine, shellcheck-precommit v0.11.0, actionlint v1.7.12, zizmor v1.31.1 (offline locally). Taskfile test, fmt, typecheck and cli use uv run --locked; lint runs compose config plus all hooks; new lock, scan and sbom tasks (aquasec/trivy:0.75.0 pinned by digest). CONTRIBUTING updated. Local: every hook passes except zizmor, whose 5 dependabot-cooldown and 1 superfluous-actions findings are fixed in the next commits; task test 45 passed, task typecheck Success, task cli -- version 0.2.1.
 Status: DONE
