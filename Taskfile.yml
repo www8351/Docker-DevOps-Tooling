@@ -16,10 +16,27 @@ tasks:
       - task --list
     silent: true
 
-  up:
-    desc: Start the full stack in the background
+  secrets:
+    desc: Generate missing admin password files under compose/secrets/
     cmds:
-      - docker compose up -d
+      - sh scripts/gen-secrets.sh
+
+  up:
+    desc: Start the stack in the background and wait until it is healthy
+    deps: [secrets]
+    cmds:
+      - docker compose up -d --wait
+
+  obs:up:
+    desc: Start the stack plus the observability profile and wait for health
+    deps: [secrets]
+    cmds:
+      - docker compose --profile observability up -d --wait
+
+  obs:down:
+    desc: Stop the stack including the observability profile
+    cmds:
+      - docker compose --profile observability down
 
   down:
     desc: Stop the stack and remove containers

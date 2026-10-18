@@ -16,10 +16,6 @@ Status: IN PROGRESS
 
 ### Security and correctness
 
-Issue:  Grafana admin password defaults to admin and is published on every interface.
-Action: Phase 1.7. Compose secret with GF_SECURITY_ADMIN_PASSWORD__FILE, no default (D4).
-Status: OPEN
-
 Issue:  Compose images are pinned literally by digest but not yet tracked by Dependabot.
 Action: Phase 2.12. Add the docker-compose ecosystem to .github/dependabot.yml.
 Status: OPEN
@@ -70,8 +66,8 @@ Issue:  README claims every long-running container is read-only and non-root, an
 Action: Phase 1.11 corrects hardening claims. Phase 5.3 refreshes layout, task list, tables, counts.
 Status: OPEN
 
-Issue:  Taskfile has no observability, secrets, scan or sbom tasks, and up does not wait for health.
-Action: Phase 1.7 and 2.7.
+Issue:  Taskfile has no scan or sbom tasks.
+Action: Phase 2.7.
 Status: OPEN
 
 ### Features closed as completed without code (milestone v0.3.0)
@@ -111,6 +107,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Grafana admin password defaulted to admin.
+Action: scripts/gen-secrets.sh creates 32 character password files under gitignored compose/secrets (dir 0700, files 0644 so Grafana UID 472 can read). Grafana reads GF_SECURITY_ADMIN_PASSWORD__FILE from a compose secret, no default. Taskfile gains secrets, obs:up, obs:down; up waits for health. stack-test generates secrets and asserts 200 with the secret and 401 with admin:admin. Local: config valid without secret files, up grafana without the file fails with bind source path does not exist, /api/user with secret 200, with admin:admin 401.
+Status: DONE
 
 Issue:  nginx-exporter bridged the web and mgmt tiers; grafana and prometheus shared mgmt with portainer's docker.sock.
 Action: Networks split into web, nginx-status (internal), metrics and mgmt; counter and dockerctl use network_mode none. Local probes: nginx to prometheus blocked, nginx to portainer blocked, grafana to portainer blocked, grafana to nginx blocked, prometheus to stub_status blocked, grafana to prometheus reachable, all 3 targets up. Known residual: httpd shares web with nginx and can read stub_status counters.

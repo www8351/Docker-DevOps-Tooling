@@ -137,6 +137,7 @@ jobs:
       - name: Boot the hardened stack + observability profile (healthchecks gate)
         run: |
           cp compose/.env.example compose/.env
+          scripts/gen-secrets.sh
           docker compose -f compose/docker-compose.yml --profile observability up -d --wait --wait-timeout 180
 
       - name: Probe web endpoints
@@ -148,6 +149,12 @@ jobs:
         run: |
           curl -fsS -o /dev/null -w 'prometheus /-/healthy -> %{http_code}\n' http://localhost:9090/-/healthy
           curl -fsS -o /dev/null -w 'grafana /api/health -> %{http_code}\n' http://localhost:3000/api/health
+          # The admin password is the generated secret, and admin/admin is refused.
+          curl -fsS -o /dev/null -w 'grafana /api/user with secret -> %{http_code}\n' \
+            -u "admin:$(cat compose/secrets/grafana_admin_password)" http://localhost:3000/api/user
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -u admin:admin http://localhost:3000/api/user)
+          echo "grafana /api/user with admin:admin -> $code"
+          [ "$code" = "401" ]
           # Scrape pipeline actually works: every prometheus target reports up.
           scripts/wait-prom-targets.sh http://localhost:9090 120
 
