@@ -73,7 +73,7 @@ compose-portainer-1   portainer/portainer-ce:2.39.8                   Up 28 seco
 - **Typed CLI: mypy strict, 75 tests, 100% coverage** see [`cli/`](cli/)
 - **Helm chart admitted under the restricted Pod Security Standard**, installed and tested on kind in CI, see [Kubernetes](#%EF%B8%8F-kubernetes-helm-chart)
 - **Every trade-off written down** in [architecture decision records](docs/adr/README.md)
-- **Released [v0.2.1](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.2.1)**: multi-arch, cosign-signed, attested images on GHCR and a [CHANGELOG](CHANGELOG.md)
+- **Released [v0.3.0](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.3.0)**: multi-arch, cosign-signed, attested images on GHCR and a [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -530,17 +530,17 @@ weekly, each waiting 7 days after a release before proposing it.
 ## 🚢 Releases & published images
 
 Tagging `vX.Y.Z` fires [`release.yml`](.github/workflows/release.yml). It first checks the tag
-against `cli/pyproject.toml` (and, for stable releases, that `CHANGELOG.md` has its section), then
+against `cli/pyproject.toml` and the chart's `appVersion` (and, for stable releases, that
+`CHANGELOG.md` has its section), then
 runs the **whole CI suite** on the tagged commit, then publishes through the same scan, sign and
 tag workflow as `main`: multi-arch, cosign-signed, semver-tagged images on GHCR plus a GitHub
 Release. Tags with a prerelease part (`v0.3.0-rc.1`) are marked as prereleases and never move
-`latest` or `major.minor`. The current
-released version is **0.2.1**. Curated notes live in
+`latest` or `major.minor`. The current release is **0.3.0**. Curated notes live in
 [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-docker pull ghcr.io/www8351/docker-devops-tooling/dockerctl:0.2.1
-docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.1
+docker pull ghcr.io/www8351/docker-devops-tooling/dockerctl:0.3.0
+docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.3.0
 ```
 
 ---
@@ -740,8 +740,8 @@ dockerctl containers stats --json
 
 ### גרסאות
 
-תגית מהצורה `vX.Y.Z` מפעילה את תהליך השחרור. הוא בודק שהתגית תואמת לגרסת הכלי ושקיים לה סעיף
-ביומן השינויים, מריץ את כל הבדיקות על אותה גרסה, ומפרסם תמונות חתומות לכמה ארכיטקטורות. הערות
+תגית מהצורה `vX.Y.Z` מפעילה את תהליך השחרור. הוא בודק שהתגית תואמת לגרסת הכלי ולגרסת התרשים,
+ושקיים לה סעיף ביומן השינויים, מריץ את כל הבדיקות על אותה גרסה, ומפרסם תמונות חתומות לכמה ארכיטקטורות. הערות
 השחרור נמצאות בקובץ [CHANGELOG.md](CHANGELOG.md).
 
 ### עקרונות

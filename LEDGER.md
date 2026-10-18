@@ -52,6 +52,10 @@ Status: DONE
 
 ### 2026-10-18
 
+Issue:  Release 0.3.0 preparation (Phase 5.5); the chart runs counter at its appVersion, but nothing tied that to the release tag (D15).
+Action: cli/pyproject.toml 0.3.0 and uv lock (Updated dockerctl v0.2.1 -> v0.3.0; uv lock --check clean); deploy/chart appVersion already 0.3.0. release.yml guard also requires deploy/chart/Chart.yaml appVersion to equal the tag. CHANGELOG: [Unreleased] cut to [0.3.0] - 2026-10-18 with a summary line, Phase 5 items added (ADRs, demo GIF, Hebrew README, contributor docs), the release guard bullet updated, compare links for 0.3.0 and the new Unreleased. README: v0.3.0 in highlights and the releases section, the appVersion check described in English and Hebrew. Local: the guard script extracted from release.yml printed "v0.3.0 matches cli/pyproject.toml (0.3.0) and the chart appVersion" (exit 0), and exited 1 for v0.3.1 (pyproject mismatch), v0.3.0-rc.1 (pyproject mismatch) and appVersion 0.2.1 ("appVersion is 0.2.1, expected 0.3.0"); before the changelog cut it exited 1 with "CHANGELOG.md has no '## [0.3.0]' section". pytest 75 passed, coverage 100.00%, dockerctl --version 0.3.0; actionlint clean; zizmor no findings; helm lint passes.
+Status: DONE
+
 Issue:  CONTRIBUTING, SECURITY and the PR template do not cover the chart, the ADRs or the release guard (Phase 5.4).
 Action: CONTRIBUTING: chart:lint and kind:test in the gates table, chart conventions (restricted profile, images and httpd.conf in step with compose, bump the chart version), the ADR rule, and release steps naming pyproject version, task lock, chart appVersion, changelog section and compare link. SECURITY: the chart is in scope, a posture bullet for the chart and its CI proof, and a pointer to the ADRs. PR template: chart and ADR checklist items. Em dashes removed. The release guard on the chart appVersion that CONTRIBUTING now describes lands in Phase 5.5.
 Status: DONE
@@ -349,7 +353,7 @@ Action: values.yaml pins nginx and httpd to the same tag and digest as compose/d
 Status: REVISIT
 
 Issue:  D15 counter image in the chart.
-Action: Defaults to ghcr.io/www8351/docker-devops-tooling/counter at the chart appVersion (0.3.0, set ahead of the release because the 0.2.x images lack counter.sh --healthcheck). CI loads a local build into kind with pullPolicy Never. The release guard should later assert appVersion matches the tag.
+Action: Defaults to ghcr.io/www8351/docker-devops-tooling/counter at the chart appVersion (0.3.0, set ahead of the release because the 0.2.x images lack counter.sh --healthcheck). CI loads a local build into kind with pullPolicy Never. The release guard asserts appVersion matches the tag.
 Status: REVISIT
 
 Issue:  Alertmanager and Loki in the observability profile.
