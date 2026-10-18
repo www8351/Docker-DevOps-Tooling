@@ -16,10 +16,6 @@ Status: IN PROGRESS
 
 ### Security and correctness
 
-Issue:  nginx-exporter joins both web and mgmt, bridging the public tier to the socket tier. Grafana and Prometheus share mgmt with portainer and cadvisor.
-Action: Phase 1.10. Split networks per D2.
-Status: OPEN
-
 Issue:  Grafana admin password defaults to admin and is published on every interface.
 Action: Phase 1.7. Compose secret with GF_SECURITY_ADMIN_PASSWORD__FILE, no default (D4).
 Status: OPEN
@@ -115,6 +111,10 @@ Status: OPEN
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  nginx-exporter bridged the web and mgmt tiers; grafana and prometheus shared mgmt with portainer's docker.sock.
+Action: Networks split into web, nginx-status (internal), metrics and mgmt; counter and dockerctl use network_mode none. Local probes: nginx to prometheus blocked, nginx to portainer blocked, grafana to portainer blocked, grafana to nginx blocked, prometheus to stub_status blocked, grafana to prometheus reachable, all 3 targets up. Known residual: httpd shares web with nginx and can read stub_status counters.
+Status: DONE
 
 Issue:  cAdvisor mounted /var/run (docker.sock and the containerd socket), the host rootfs and /var/lib/docker, kept all capabilities, and CI waited a fixed 20 seconds before checking Prometheus targets.
 Action: cAdvisor now mounts only /sys:ro with cgroup: host and cap_drop ALL. Prometheus derives container_id from the cgroup path; the dashboard groups by it and swaps the per-container network panel for nginx requests per second. scripts/wait-prom-targets.sh polls targets instead of sleeping. stack-test asserts the cadvisor mounts are exactly /sys and that the nginx container has memory series under its container_id. Local run: targets 3 down [], mounts /sys, CapDrop [ALL], nginx memory series 1.

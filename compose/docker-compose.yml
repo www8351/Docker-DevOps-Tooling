@@ -12,7 +12,9 @@
 #   - published ports bind to loopback unless WEB_BIND_ADDR / ADMIN_BIND_ADDR
 #     say otherwise; the admin UIs and the web tier are opened separately
 #   - healthchecks on every long-running service that can support one
-#   - two network tiers: `web` (public-facing) and `mgmt` (docker.sock consumers)
+#   - network tiers: `web` (public-facing), `nginx-status` (internal, stub_status
+#     only), `metrics` (prometheus, grafana, cadvisor), `mgmt` (portainer and
+#     its docker.sock); services that need no network get none
 #   - read-only root filesystems with tmpfs for known write paths
 #   - all capabilities dropped, only the minimum added back
 #   - no-new-privileges, CPU/memory limits, bounded json-file logging
@@ -48,7 +50,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [web]
+    networks: [web, nginx-status]
     logging: *default-logging
     deploy:
       resources:
@@ -146,6 +148,8 @@ services:
       context: ../cli
     image: dockerctl:local
     # Mount the host socket to drive the real engine; safe to omit for --help.
+    # No network: the client reaches the engine over that unix socket, and
+    # pulls and pushes run inside the daemon, not in this container.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     read_only: true
@@ -154,7 +158,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    network_mode: none
     logging: *default-logging
     deploy:
       resources:
@@ -188,7 +192,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    networks: [metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -223,7 +227,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    networks: [metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -255,7 +259,7 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    networks: [mgmt]
+    networks: [metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -274,8 +278,9 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    # web to reach nginx's stub_status, mgmt so prometheus can scrape it.
-    networks: [web, mgmt]
+    # nginx-status to reach nginx's stub_status, metrics so prometheus can
+    # scrape it. It never joins the public web tier.
+    networks: [nginx-status, metrics]
     logging: *default-logging
     deploy:
       resources:
@@ -284,9 +289,14 @@ services:
           memory: 32M
 
 networks:
-  # Public-facing services; no access to the docker socket tier.
+  # Public-facing web servers.
   web:
-  # Socket consumers (portainer, dockerctl), isolated from the web tier.
+  # nginx stub_status and its exporter only; internal, no route out.
+  nginx-status:
+    internal: true
+  # Prometheus, Grafana and cAdvisor. Not internal: two of them publish ports.
+  metrics:
+  # Portainer, the only service holding docker.sock in the default stack.
   mgmt:
 
 volumes:
