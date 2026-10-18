@@ -82,15 +82,15 @@ Issue:  #41 setuptools, #61 mypy, #63 typer, #64 ruff floor bumps.
 Action: Absorbed in Phase 2.3. Owner closes those Dependabot does not auto close.
 Status: OPEN
 
-Issue:  #49 hadolint-action, #50 action-gh-release, #56 setup-buildx, #57 build-push, #58 setup-qemu.
-Action: Absorbed in Phase 2.2 with the exact SHAs from each PR.
-Status: OPEN
-
 ---
 
 ## ACTIONS
 
 ### 2026-10-18
+
+Issue:  Dependabot action bumps #49, #50, #56, #57, #58 open since August and September.
+Action: Applied the exact SHAs from each Dependabot branch: hadolint-action v3.5.0, action-gh-release v3.0.3, setup-buildx-action v4.4.1, build-push-action v7.4.0, setup-qemu-action v4.4.0. Dependabot closes those PRs once main carries the versions.
+Status: DONE
 
 Issue:  CI ran twice per PR push (push on every branch plus pull_request), cancel-in-progress could cancel a publish on main, no job had a timeout, and checkouts kept the token in .git/config.
 Action: ci.yml triggers on push to main, pull_request, workflow_dispatch and workflow_call; concurrency group per PR number or ref, cancelling only pull_request runs; timeout-minutes on every job in ci.yml and release.yml; persist-credentials false on all six checkouts. actionlint v1.7.7 with shellcheck: clean.
