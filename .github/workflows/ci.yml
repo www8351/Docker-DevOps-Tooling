@@ -23,6 +23,12 @@ jobs:
       - name: Validate compose file
         run: docker compose -f compose/docker-compose.yml config --quiet
 
+      - name: Assert published ports bind to loopback by default
+        run: |
+          docker compose -f compose/docker-compose.yml --profile observability --profile tools \
+            config --format json \
+            | python3 -c "import json,sys; s=json.load(sys.stdin)['services']; p=[(n,x) for n,v in s.items() for x in v.get('ports',[])]; bad=[n for n,x in p if x.get('host_ip')!='127.0.0.1']; print('published:', len(p), 'off loopback:', bad); sys.exit(1 if bad or not p else 0)"
+
       - name: Lint counter Dockerfile (hadolint)
         uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
         with:

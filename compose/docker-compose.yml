@@ -8,6 +8,8 @@
 # Hardening baseline (applied per service below):
 #   - pinned image tags (overridable via .env; alpine variants provide busybox
 #     wget for healthchecks)
+#   - published ports bind to loopback unless WEB_BIND_ADDR / ADMIN_BIND_ADDR
+#     say otherwise; the admin UIs and the web tier are opened separately
 #   - healthchecks on every long-running service that can support one
 #   - two network tiers: `web` (public-facing) and `mgmt` (docker.sock consumers)
 #   - read-only root filesystems with tmpfs for known write paths
@@ -25,7 +27,7 @@ services:
   nginx:
     image: nginx:${NGINX_TAG:-1.27-alpine}
     ports:
-      - "${NGINX_PORT:-8080}:80"
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${NGINX_PORT:-8080}:80"
     volumes:
       - ../web:/usr/share/nginx/html:ro
       # stub_status on :8082 (not host-mapped) for the observability profile.
@@ -58,7 +60,7 @@ services:
   httpd:
     image: httpd:${HTTPD_TAG:-2.4-alpine}
     ports:
-      - "${HTTPD_PORT:-8081}:80"
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${HTTPD_PORT:-8081}:80"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
@@ -89,7 +91,7 @@ services:
   portainer:
     image: portainer/portainer-ce:${PORTAINER_TAG:-2.27.9}
     ports:
-      - "${PORTAINER_PORT:-9000}:9000"
+      - "${ADMIN_BIND_ADDR:-127.0.0.1}:${PORTAINER_PORT:-9000}:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
@@ -171,7 +173,7 @@ services:
     profiles: ["observability"]
     image: prom/prometheus:${PROMETHEUS_TAG:-v3.13.0}
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "${ADMIN_BIND_ADDR:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -198,7 +200,7 @@ services:
     profiles: ["observability"]
     image: grafana/grafana:${GRAFANA_TAG:-12.3.8}
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${ADMIN_BIND_ADDR:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
