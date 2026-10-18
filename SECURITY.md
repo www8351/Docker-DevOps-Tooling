@@ -57,7 +57,7 @@ regexp above matches both. To pin a release exactly, use
 - CodeQL analyses the Python code and the workflows; actionlint and zizmor
   check every workflow change.
 - Images are published multi-arch (linux/amd64, linux/arm64).
-- CI boots the full hardened stack on every push — healthchecks and live
+- CI boots the full hardened stack on every pull request: healthchecks and live
   endpoint probes gate the merge.
 - Compose services run read-only with all capabilities dropped (httpd
   re-adds the four it needs to bind port 80 and switch to its worker user),

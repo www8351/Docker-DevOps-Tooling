@@ -60,6 +60,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  Adversarial review of the phase 2 diff: the dry-run registry service also ran (and was pulled from Docker Hub) for real publishes; major.minor relied on metadata-action alone to skip prereleases; gh release create failed on a re-run once the release existed; main publish did not wait for workflow-lint while releases did; comments overstated main concurrency and test gating; docs still said CI runs on every push.
+Action: Registry now starts in a step gated on dry-run (bound to 127.0.0.1:5000); major.minor explicitly disabled for tags containing a dash; github-release skips when the release exists; publish needs workflow-lint; ci.yml comments state that main runs queue one at a time with a newer merge replacing a waiting one (grouping by sha was rejected because two publishes could race on latest); README and SECURITY.md say pull requests instead of every push. self-repository is a valid zizmor id (zizmor reports 4 ignored). actionlint clean, zizmor No findings.
+Status: DONE
+
 Issue:  README, SECURITY.md and CHANGELOG still described per-branch CI, pip installs, Python 3.10, the old publish and an ungated release.
 Action: README: Python 3.11+ badge and requirement, uv, lockfile based dockerctl build, CI section with lint, test, workflow-lint, image SARIF, stack-test, shared publish steps and dry run, CodeQL, Dependabot with cooldown, gated release flow. SECURITY.md: cosign identity now _publish.yml@ref (existing regexp still matches), publish order, gated releases, lockfile, CodeQL and workflow linting. CHANGELOG Unreleased gains Security, Added and Changed entries including the Python 3.10 drop as breaking.
 Status: DONE

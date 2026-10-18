@@ -2,8 +2,8 @@ name: Release
 
 # Every v* tag: check the tag against the package version and changelog, run
 # the full CI suite on the tagged commit, publish through the shared
-# scan-sign-tag workflow, then create the GitHub Release. Nothing is pushed
-# to GHCR unless every earlier step passed.
+# scan-sign-tag workflow, then create the GitHub Release. No tag moves on
+# GHCR unless every earlier step passed.
 on:
   push:
     tags: ["v*"]
@@ -87,7 +87,8 @@ jobs:
     steps:
       # gh ships on the runner, so no third-party release action is needed.
       # --notes is prepended to the generated notes. Tags with a semver
-      # prerelease part (v0.3.0-rc.1) become prereleases.
+      # prerelease part (v0.3.0-rc.1) become prereleases. A re-run after the
+      # release exists leaves it as it is instead of failing.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,6 +102,10 @@ jobs:
             See [CHANGELOG.md](https://github.com/www8351/Docker-DevOps-Tooling/blob/main/CHANGELOG.md)
             for the curated list of changes.
         run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; leaving it unchanged."
+            exit 0
+          fi
           args=(--repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --notes "$NOTES")
           case "$TAG" in *-*) args+=(--prerelease) ;; esac
           gh release create "$TAG" "${args[@]}"

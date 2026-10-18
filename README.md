@@ -74,7 +74,7 @@ compose-portainer-1   portainer/portainer-ce:2.39.8                   Up 28 seco
 
 This repo began as a set of **interactive bash menus** written years ago to learn Docker.
 They worked at a keyboard, but they were fragile and impossible to automate. Everything was
-rebuilt as declarative config, a flag-driven CLI, and CI validation on every push.
+rebuilt as declarative config, a flag-driven CLI, and CI validation on every pull request.
 
 The result is **non-interactive, reproducible, and pipeline-safe**.
 
@@ -137,7 +137,7 @@ flowchart TD
 │       ├── images.py        # pull / rm
 │       └── containers.py    # ls / rm / deploy
 ├── Taskfile.yml             # engineering entrypoint
-└── .github/workflows/ci.yml # lint + validate on every push
+└── .github/workflows/ci.yml # lint, test, scan and boot the stack on every PR
 ```
 
 ---
@@ -304,7 +304,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 
 ### 🔎 Scanned in CI
 
-Both images are built and scanned by **Trivy** on every push (see
+Both images are built and scanned by **Trivy** on every pull request and merge (see
 [CI](#-continuous-integration)). The scan **gates on HIGH/CRITICAL** findings
 (`ignore-unfixed: true`, so unpatchable upstream base CVEs don't break the build).
 

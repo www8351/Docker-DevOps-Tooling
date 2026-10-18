@@ -1,8 +1,8 @@
 name: CI
 
 on:
-  # Branch pushes are covered by their pull request; main still runs (and
-  # publishes) on every merge. workflow_call lets release.yml gate on it.
+  # Branch pushes are covered by their pull request; main runs (and
+  # publishes) after merges. workflow_call lets release.yml gate on it.
   push:
     branches: [main]
   pull_request:
@@ -13,8 +13,10 @@ on:
 permissions:
   contents: read
 
-# One run per pull request or ref. Superseded PR runs are cancelled; runs on
-# main and tags are not, so a publish never stops half way.
+# One run per pull request or ref. Superseded PR runs are cancelled. Runs on
+# main and tags are never cancelled once started, so a publish never stops
+# half way; they queue one at a time, and a newer merge replaces one still
+# waiting, so latest only ever moves forward.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -112,7 +114,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: uvx zizmor@1.31.1 --format github .github/
 
-  # The rest of the supported range. Not a required check; lint covers 3.11.
+  # The rest of the supported range. Not a required status check in the
+  # branch ruleset (lint covers 3.11), but publish and releases wait for it.
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -319,7 +322,7 @@ jobs:
         run: docker compose -f compose/docker-compose.yml --profile observability down -v
 
   publish:
-    needs: [lint, test, image, stack-test]
+    needs: [lint, test, workflow-lint, image, stack-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read

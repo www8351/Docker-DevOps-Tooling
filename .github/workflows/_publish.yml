@@ -34,12 +34,6 @@ jobs:
             context: images/counter
           - name: dockerctl
             context: cli
-    # Throwaway registry for dry runs; idle otherwise.
-    services:
-      registry:
-        image: registry:3.1.1@sha256:325b4b29b041e82803abeb703e201655e4e23ab83264ec1a7c9ddb0a5b14a6e0
-        ports:
-          - 5000:5000
     env:
       IMAGE: ${{ inputs.mode == 'dry-run' && format('localhost:5000/{0}', matrix.name) || format('ghcr.io/www8351/docker-devops-tooling/{0}', matrix.name) }}
       # Scan the registry copy, never a local daemon image.
@@ -58,6 +52,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Throwaway registry, started only for dry runs so a real publish never
+      # depends on pulling it.
+      - name: Start a local registry (dry run)
+        if: inputs.mode == 'dry-run'
+        run: docker run -d --name registry -p 127.0.0.1:5000:5000 registry:3.1.1@sha256:325b4b29b041e82803abeb703e201655e4e23ab83264ec1a7c9ddb0a5b14a6e0
 
       - name: Set up QEMU (arm64 emulation)
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -92,7 +92,7 @@ jobs:
             type=raw,value=latest,enable=${{ inputs.mode == 'main' }}
             type=sha,enable=${{ inputs.mode == 'main' }}
             type=semver,pattern={{version}},enable=${{ inputs.mode == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ inputs.mode == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ inputs.mode == 'release' && !contains(github.ref_name, '-') }}
             type=raw,value=dry-run,enable=${{ inputs.mode == 'dry-run' }}
 
       # No build cache here: a poisoned cache entry must never reach a
