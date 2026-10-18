@@ -1,0 +1,158 @@
+name: Publish images
+
+# Shared by ci.yml (every push to main, plus a dry run on pull requests) and
+# release.yml (every v* tag). The order matters: nothing gets a tag until
+# the exact digest that was pushed has passed a Trivy scan on every
+# platform and, outside dry runs, has been signed.
+#
+#   1. build both platforms and push by digest only (no tag yet)
+#   2. scan that digest per platform (amd64 and arm64)
+#   3. cosign sign the digest (keyless, OIDC)
+#   4. point the tags at the digest and check the digest did not change
+#
+# Permissions come from the calling job: a real publish grants
+# packages: write and id-token: write, the dry run grants contents: read.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "main (latest + short sha), release (semver, latest unless prerelease) or dry-run (local registry, no signing)"
+        type: string
+        required: true
+
+jobs:
+  publish:
+    name: publish (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: counter
+            context: images/counter
+          - name: dockerctl
+            context: cli
+    # Throwaway registry for dry runs; idle otherwise.
+    services:
+      registry:
+        image: registry:3.1.1@sha256:325b4b29b041e82803abeb703e201655e4e23ab83264ec1a7c9ddb0a5b14a6e0
+        ports:
+          - 5000:5000
+    env:
+      IMAGE: ${{ inputs.mode == 'dry-run' && format('localhost:5000/{0}', matrix.name) || format('ghcr.io/www8351/docker-devops-tooling/{0}', matrix.name) }}
+      # Scan the registry copy, never a local daemon image.
+      TRIVY_IMAGE_SRC: remote
+      TRIVY_INSECURE: ${{ inputs.mode == 'dry-run' }}
+    steps:
+      - name: Check mode
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          case "$MODE" in
+            main|release|dry-run) ;;
+            *) echo "unknown mode: $MODE" >&2; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU (arm64 emulation)
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      # Host networking and plain HTTP for localhost:5000 only matter for the
+      # dry-run registry.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: network=host
+          buildkitd-config-inline: |
+            [registry."localhost:5000"]
+              http = true
+
+      - name: Log in to GHCR
+        if: inputs.mode != 'dry-run'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata for ${{ matrix.name }}
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          # latest=auto adds `latest` to semver releases that are not
+          # prereleases; main pushes set it explicitly.
+          flavor: latest=auto
+          tags: |
+            type=raw,value=latest,enable=${{ inputs.mode == 'main' }}
+            type=sha,enable=${{ inputs.mode == 'main' }}
+            type=semver,pattern={{version}},enable=${{ inputs.mode == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ inputs.mode == 'release' }}
+            type=raw,value=dry-run,enable=${{ inputs.mode == 'dry-run' }}
+
+      # No build cache here: a poisoned cache entry must never reach a
+      # published image.
+      - name: Build and push ${{ matrix.name }} by digest (multi-arch, attested)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          provenance: mode=max
+          sbom: true
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Scan the pushed linux/amd64 image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/amd64
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Scan the pushed linux/arm64 image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Install cosign
+        if: inputs.mode != 'dry-run'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign the digest (keyless, OIDC)
+        if: inputs.mode != 'dry-run'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      # imagetools copies a single-source index verbatim, so every tag must
+      # resolve to the digest that was scanned and signed; anything else
+      # fails the job.
+      - name: Tag the digest and verify every tag resolves to it
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          mapfile -t refs <<< "$TAGS"
+          args=()
+          for ref in "${refs[@]}"; do [ -n "$ref" ] && args+=(--tag "$ref"); done
+          docker buildx imagetools create "${args[@]}" "${IMAGE}@${DIGEST}"
+          for ref in "${refs[@]}"; do
+            [ -n "$ref" ] || continue
+            got=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            echo "$ref -> $got"
+            [ "$got" = "$DIGEST" ] || { echo "$ref resolves to $got, expected $DIGEST" >&2; exit 1; }
+          done

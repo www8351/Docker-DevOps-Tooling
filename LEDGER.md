@@ -64,6 +64,10 @@ Status: OPEN
 
 ### 2026-10-18
 
+Issue:  The main publish built and tagged multi-arch images in one step, so latest moved before anything scanned the pushed bytes; only the amd64 CI build was ever scanned; release.yml duplicated the logic.
+Action: New reusable _publish.yml (modes main, release, dry-run): push by digest only, Trivy on the pushed digest for linux/amd64 and linux/arm64, cosign sign the digest, then docker buildx imagetools create the tags and fail unless every tag resolves to the scanned digest. latest=auto keeps latest off prereleases. No build cache in publish. ci.yml publish calls it with mode main; a new publish-dry-run job runs it on every pull request against a registry:3.1.1 service container without signing. Local: imagetools retag preserved index digest 294b683c including attestation manifests; tag step exit 0 when tags match, exit 1 on a digest mismatch; actionlint clean; zizmor No findings (2 self-repository ignored with reason: ./ already pins the callee to this commit and actionlint does not parse $/ yet).
+Status: DONE
+
 Issue:  No code scanning: no CodeQL and Trivy results only in job logs.
 Action: New codeql.yml (python and actions, build-mode none, codeql-action v4.39.0 commit 6f2ac81f) on pushes to main, pull requests, weekly and on dispatch. The image job uploads a Trivy SARIF (MEDIUM and up, never gating) per image with continue-on-error for tokens that cannot write alerts; job gains security-events write. Repository is public, so code scanning needs no extra licence. Local: actionlint clean, zizmor No findings.
 Status: DONE
