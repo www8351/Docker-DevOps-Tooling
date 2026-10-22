@@ -22,8 +22,12 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  Every astral-sh/setup-uv step resolves the latest uv (0.13.1 in the Phase 3 runs) while cli/Dockerfile pins uv 0.11.32, so CI and the image can drift.
+Issue:  Every astral-sh/setup-uv step resolves the latest uv while cli/Dockerfile pins one (0.11.32, then 0.13.5 after Dependabot commit 7435c3e on main), so CI and the image can drift.
 Action: Pin a uv version in the setup-uv steps, or record why not. Raised in the PR #77 body; not yet decided.
+Status: OPEN
+
+Issue:  main now runs nginx 1.31.6 (Dependabot bump merged to main as 589f9c6). nginx's odd minor versions are its mainline line; D9 chose the stable line, and Dependabot will keep proposing mainline releases.
+Action: Owner decides: keep 1.31 (mainline), or return compose and chart to 1.30 and add a Dependabot ignore for odd nginx minors. The chart follows whatever compose runs, as D14 requires.
 Status: OPEN
 
 ### Code quality
@@ -53,6 +57,12 @@ Status: DONE
 ---
 
 ## ACTIONS
+
+### 2026-10-22
+
+Issue:  CI on main went red after 589f9c6 (owner merge of the Dependabot nginx-unprivileged 1.31.6 branch): helm failed with "chart nginx image differs from compose: nginxinc/nginx-unprivileged:1.31.6-alpine3.24@sha256:884e0b7f42f303641b0f4e78755aea647521dca0b89ca3be7992ad78b5c07434" (run 39756370310, attempt 2). The same check had failed on the Dependabot PR (run 39721046953). This is the D14 sync check working as designed: the compose bump did not update deploy/chart/values.yaml. Every other job on that run passed, stack-test included.
+Action: Merged origin/main into ccr-1ddb6a39-8xlw9d (the open PR #79 branch; no conflicts). Reproduced the CI step locally (same message, exit 1), then set the chart's nginx tag and digest to the compose ones and bumped the chart version to 0.1.1. Local: the sync step prints both images and exits 0; helm lint --strict 1 chart(s) linted, 0 chart(s) failed; kubeconform Valid: 11. README stack table and sample output and the CHANGELOG nginx line now say 1.31; the deploy examples and the demo tape keep 1.30.6, which is only an example image. Raised the mainline question as an owner issue.
+Status: DONE
 
 ### 2026-10-18
 

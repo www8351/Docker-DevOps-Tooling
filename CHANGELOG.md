@@ -98,7 +98,7 @@ shipped in five reviewed phases. Several changes are breaking; see Changed.
 - httpd runs as `www-data` (UID 82) on port 8080 from a minimal
   `compose/httpd/httpd.conf`, with no capabilities added back; the host port
   stays 8081.
-- nginx moves to `nginxinc/nginx-unprivileged` 1.30 stable on port 8080;
+- nginx moves to `nginxinc/nginx-unprivileged` 1.31 on port 8080;
   Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
   nginx-prometheus-exporter to their latest patch releases.
 - counter exits promptly on SIGTERM when it runs as PID 1 (Kubernetes, or

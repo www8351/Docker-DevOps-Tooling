@@ -7,7 +7,7 @@ description: >-
   passes the restricted Pod Security Standard.
 type: application
 # Chart version, bumped on any change to the chart itself.
-version: 0.1.0
+version: 0.1.1
 # The release whose counter image the chart runs by default
 # (ghcr.io/www8351/docker-devops-tooling/counter:<appVersion>).
 appVersion: "0.3.0"
