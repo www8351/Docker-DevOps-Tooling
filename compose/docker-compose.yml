@@ -30,7 +30,7 @@ services:
   # nginx-unprivileged runs as UID 101 on port 8080 and keeps its pid and
   # temp files under /tmp, so it needs no capabilities at all.
   nginx:
-    image: nginxinc/nginx-unprivileged:1.30.6-alpine3.24@sha256:782bb89768cc87b7f95c18b95baa1af250e5d451f26794f59363540161147c01
+    image: nginxinc/nginx-unprivileged:1.31.6-alpine3.24@sha256:884e0b7f42f303641b0f4e78755aea647521dca0b89ca3be7992ad78b5c07434
     ports:
       - "${WEB_BIND_ADDR:-127.0.0.1}:${NGINX_PORT:-8080}:8080"
     volumes:
