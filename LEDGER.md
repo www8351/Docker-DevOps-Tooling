@@ -8,27 +8,27 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: owner review of the Phase 5 PR, then the v0.3.0 tag
+### Next action: merge the follow-up PR (nginx 1.30, CI pins), then the v0.3.0 tag
 
-Issue:  Phase 5 of the 0.3.0 roadmap (#15, #17, docs accuracy, release prep) is complete on branch ccr-1ddb6a39-8xlw9d; it is the last phase of the roadmap.
-Action: Owner: review and merge the Phase 5 PR, then push tag v0.3.0 from main. release.yml checks the tag against cli/pyproject.toml (0.3.0), the chart appVersion (0.3.0) and the CHANGELOG section before anything is published. Pushing tags is not authorized for the agent.
+Issue:  The 0.3.0 roadmap is merged (PR #79 as 3e84050). The owner then ruled on three follow-ups (see DECISIONS, 2026-10-22), shipped as one PR on ccr-1ddb6a39-8xlw9d.
+Action: Owner: merge that PR, then push tag v0.3.0 from main. release.yml checks the tag against cli/pyproject.toml (0.3.0), the chart appVersion (0.3.0) and the CHANGELOG section before anything is published. Pushing tags is not authorized for the agent.
 Status: OPEN
 
-Issue:  Checks added during the roadmap are not in the main-protection ruleset: test, workflow-lint, publish-dry-run, helm.
-Action: Owner decides whether to add them as required status checks. Editing the ruleset is not authorized for the agent.
+Issue:  helm is not yet a required status check in the main-protection ruleset (owner ruling 2026-10-22: add it). The agent has no tool that edits rulesets.
+Action: Owner adds helm under Settings, Rules, Rulesets, main-protection, Require status checks to pass. test, workflow-lint and publish-dry-run remain optional additions.
 Status: OPEN
 
 ### Security and correctness
 
 ### CI and reproducibility
 
-Issue:  Every astral-sh/setup-uv step resolves the latest uv while cli/Dockerfile pins one (0.11.32, then 0.13.5 after Dependabot commit 7435c3e on main), so CI and the image can drift.
-Action: Pin a uv version in the setup-uv steps, or record why not. Raised in the PR #77 body; not yet decided.
-Status: OPEN
+Issue:  Every astral-sh/setup-uv step resolved the latest uv while cli/Dockerfile pins one (0.11.32, then 0.13.5 after Dependabot commit 7435c3e on main), so CI and the image could drift.
+Action: Owner ruling 2026-10-22 (pin what CI needs). UV_VERSION 0.13.5 in ci.yml and release.yml, checked against cli/Dockerfile by workflow-lint.
+Status: DONE
 
-Issue:  main now runs nginx 1.31.6 (Dependabot bump merged to main as 589f9c6). nginx's odd minor versions are its mainline line; D9 chose the stable line, and Dependabot will keep proposing mainline releases.
-Action: Owner decides: keep 1.31 (mainline), or return compose and chart to 1.30 and add a Dependabot ignore for odd nginx minors. The chart follows whatever compose runs, as D14 requires.
-Status: OPEN
+Issue:  main ran nginx 1.31.6 (Dependabot bump merged as 589f9c6), the mainline line; D9 chose the stable line.
+Action: Owner ruling 2026-10-22: stay on 1.30. Compose and chart moved back to 1.30.6 and Dependabot ignores the odd minors 1.31 and 1.33.
+Status: DONE
 
 ### Code quality
 
@@ -59,6 +59,18 @@ Status: DONE
 ## ACTIONS
 
 ### 2026-10-22
+
+Issue:  Owner ruling 2026-10-22: pin what CI needs. Floating versions found: setup-uv installed the latest uv (no version input); the kind namespace enforced PSS version "latest"; every job ran on the moving ubuntu-latest label. Actions already pin their tools by commit SHA (trivy-action installs trivy v0.70.0, cosign-installer cosign v3.0.6, kind-action kind v0.33.0 with kubectl v1.37.1, setup-helm helm v4.3.1).
+Action: Workflow env UV_VERSION "0.13.5" in ci.yml and release.yml, passed to all five setup-uv steps; a new workflow-lint step fails unless both equal the uv image tag in cli/Dockerfile. PSS enforce-version v1.37 (the kind node's minor). runs-on ubuntu-24.04 in ci, _publish, release and codeql (what ubuntu-latest already resolved to: the runners reported CPython 3.12.3 at /usr/bin/python3, which is Ubuntu 24.04's). Left floating on purpose: setup-qemu's binfmt image (tonistiigi/binfmt:latest) and the BuildKit image buildx starts, which no Dependabot ecosystem can track; pinning them would go stale silently. Docs: README CI and Dependabot paragraphs (English and Hebrew), CONTRIBUTING, CHANGELOG. Local: actionlint clean, zizmor no findings; the uv check printed "ci.yml -> uv 0.13.5" and "release.yml -> uv 0.13.5" (exit 0), and with cli/Dockerfile set to 0.14.0 it failed with "pins uv '0.13.5', cli/Dockerfile uses '0.14.0'" (exit 1).
+Status: DONE
+
+Issue:  Phase 5 PR #79.
+Action: Owner merged PR #79 into main as 3e84050 (head f3e5eeb, all 15 run checks green, publish skipped). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease.
+Status: DONE
+
+Issue:  Owner ruling 2026-10-22: stay on the nginx 1.30 stable line.
+Action: compose and deploy/chart/values.yaml pin nginxinc/nginx-unprivileged:1.30.6-alpine3.24@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03, the current build of that tag (Docker Hub rebuilt 1.30.6 on 2026-10-19; the digest pinned in Phase 1 was 782bb897). Chart version 0.1.2. dependabot.yml ignores nginx-unprivileged ">= 1.31, < 1.32" and ">= 1.33, < 1.34" in the docker-compose ecosystem. README table and sample output, and the CHANGELOG nginx line, say 1.30. Local: docker pull of the pinned reference succeeded (user 101, port 8080); docker run read-only with cap-drop ALL answered 200 and nginx -v printed nginx/1.30.6; compose up --wait reported compose-nginx-1 Healthy and :8080 returned 200; the CI sync step printed both images and exited 0; helm lint --strict passed; compose config and the dependabot.yml YAML parse cleanly.
+Status: DONE
 
 Issue:  CI on main went red after 589f9c6 (owner merge of the Dependabot nginx-unprivileged 1.31.6 branch): helm failed with "chart nginx image differs from compose: nginxinc/nginx-unprivileged:1.31.6-alpine3.24@sha256:884e0b7f42f303641b0f4e78755aea647521dca0b89ca3be7992ad78b5c07434" (run 39756370310, attempt 2). The same check had failed on the Dependabot PR (run 39721046953). This is the D14 sync check working as designed: the compose bump did not update deploy/chart/values.yaml. Every other job on that run passed, stack-test included.
 Action: Merged origin/main into ccr-1ddb6a39-8xlw9d (the open PR #79 branch; no conflicts). Reproduced the CI step locally (same message, exit 1), then set the chart's nginx tag and digest to the compose ones and bumped the chart version to 0.1.1. Local: the sync step prints both images and exits 0; helm lint --strict 1 chart(s) linted, 0 chart(s) failed; kubeconform Valid: 11. README stack table and sample output and the CHANGELOG nginx line now say 1.31; the deploy examples and the demo tape keep 1.30.6, which is only an example image. Raised the mainline question as an owner issue.
@@ -372,6 +384,22 @@ Status: REVISIT
 
 Issue:  D15 counter image in the chart.
 Action: Defaults to ghcr.io/www8351/docker-devops-tooling/counter at the chart appVersion (0.3.0, set ahead of the release because the 0.2.x images lack counter.sh --healthcheck). CI loads a local build into kind with pullPolicy Never. The release guard asserts appVersion matches the tag.
+Status: REVISIT
+
+Issue:  nginx release line.
+Action: Owner ruling 2026-10-22: stay on the stable line (1.30); Dependabot ignores the mainline odd minors.
+Status: FINAL
+
+Issue:  helm as a required check.
+Action: Owner ruling 2026-10-22: add helm to the required status checks of main-protection.
+Status: FINAL
+
+Issue:  Tool versions in CI.
+Action: Owner ruling 2026-10-22: pin what CI needs pinned.
+Status: FINAL
+
+Issue:  D16 how CI pins uv.
+Action: One UV_VERSION per workflow file, checked against the Dependabot-tracked uv image in cli/Dockerfile, so a uv bump fails workflow-lint until the workflows follow (the same pattern as D14). Rejected: [tool.uv] required-version in pyproject (forces every contributor onto one uv), pinning without a check (drifts silently).
 Status: REVISIT
 
 Issue:  Alertmanager and Loki in the observability profile.

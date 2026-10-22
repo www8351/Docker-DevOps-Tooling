@@ -42,7 +42,9 @@ shipped in five reviewed phases. Several changes are breaking; see Changed.
   hashes; CI, the image and the hooks install from it.
 - Workflows: actionlint and zizmor in CI, CodeQL for Python and Actions,
   Trivy SARIF to code scanning, job timeouts, no persisted checkout tokens,
-  and a 7 day Dependabot cooldown.
+  and a 7 day Dependabot cooldown. Jobs run on `ubuntu-24.04`, uv is pinned
+  to the version `cli/Dockerfile` uses (CI fails if they differ), and the
+  kind namespace enforces a fixed Pod Security Standard version.
 
 ### Added
 
@@ -98,7 +100,7 @@ shipped in five reviewed phases. Several changes are breaking; see Changed.
 - httpd runs as `www-data` (UID 82) on port 8080 from a minimal
   `compose/httpd/httpd.conf`, with no capabilities added back; the host port
   stays 8081.
-- nginx moves to `nginxinc/nginx-unprivileged` 1.31 on port 8080;
+- nginx moves to `nginxinc/nginx-unprivileged` 1.30 (the stable line) on port 8080;
   Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
   nginx-prometheus-exporter to their latest patch releases.
 - counter exits promptly on SIGTERM when it runs as PID 1 (Kubernetes, or

@@ -15,9 +15,15 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+# uv for every setup-uv step. Must equal the uv image tag in cli/Dockerfile,
+# which Dependabot bumps; the workflow-lint job fails while they differ, so a
+# uv bump updates this line in the same pull request.
+env:
+  UV_VERSION: "0.13.5"
+
 jobs:
   guard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,6 +33,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: false
 
       # The tag is semver (v0.3.0, v0.3.0-rc.1); pyproject.toml is PEP 440
@@ -87,7 +94,7 @@ jobs:
 
   github-release:
     needs: publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
