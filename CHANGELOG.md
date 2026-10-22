@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-18
+
+Hardening, supply chain, CLI correctness, a Helm chart and documentation,
+shipped in five reviewed phases. Several changes are breaking; see Changed.
+
 ### Security
 
 - **The CLI ends option parsing before every positional argument** (`--`), so
@@ -31,8 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moves tags (verifying each resolves to the signed digest). Before, tags
   moved at push time and the arm64 image was never scanned.
 - **Releases are gated.** `release.yml` checks the tag against the package
-  version and changelog, runs the full CI suite on the tagged commit, and
-  no longer tags prereleases `latest`.
+  version, the chart `appVersion` and the changelog, runs the full CI suite
+  on the tagged commit, and no longer tags prereleases `latest`.
 - **Locked dependencies.** `cli/uv.lock` pins every Python dependency with
   hashes; CI, the image and the hooks install from it.
 - Workflows: actionlint and zizmor in CI, CodeQL for Python and Actions,
@@ -71,6 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI `helm` job: installs the chart on kind in a namespace enforcing the
   restricted profile and runs `helm test`; it also fails when the chart's
   images or `httpd.conf` drift from compose.
+- **Architecture decision records** in `docs/adr` (#15), backfilled for the
+  project's main trade-offs, with a template for new ones.
+- **Demo GIF** (#17) rendered from a rewritten `docs/assets/demo.tape` and
+  embedded in the README.
+- A full Hebrew section in the README, mirroring the English one.
 
 ### Changed
 
@@ -88,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - httpd runs as `www-data` (UID 82) on port 8080 from a minimal
   `compose/httpd/httpd.conf`, with no capabilities added back; the host port
   stays 8081.
-- nginx moves to `nginxinc/nginx-unprivileged` 1.30 stable on port 8080;
+- nginx moves to `nginxinc/nginx-unprivileged` 1.31 on port 8080;
   Portainer to the 2.39 LTS line; Grafana to 12.4; Prometheus, httpd and
   nginx-prometheus-exporter to their latest patch releases.
 - counter exits promptly on SIGTERM when it runs as PID 1 (Kubernetes, or
@@ -112,6 +122,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the lockfile; Dependabot tracks `uv` instead of `pip`.
 - Dependency floors: typer ≥ 0.27.3, mypy ≥ 2.4.0, ruff ≥ 0.17.0,
   setuptools ≥ 84.0.0. GitHub Actions bumped to their latest releases.
+- README layout, task list and counts match the repository; CONTRIBUTING,
+  SECURITY and the PR template cover the chart, the ADRs and the release
+  steps.
 
 ## [0.2.1] - 2026-07-02
 
@@ -199,7 +212,8 @@ Initial modernization of the 5-year-old interactive bash labs.
 - All legacy interactive bash menu scripts, dead images
   (`abh1nav/dockerui`), and hardcoded AWS IPs.
 
-[Unreleased]: https://github.com/www8351/Docker-DevOps-Tooling/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/www8351/Docker-DevOps-Tooling/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/www8351/Docker-DevOps-Tooling/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/www8351/Docker-DevOps-Tooling/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/www8351/Docker-DevOps-Tooling/compare/c6c601e...v0.2.0
 [0.1.0]: https://github.com/www8351/Docker-DevOps-Tooling/compare/12b18a5...c6c601e

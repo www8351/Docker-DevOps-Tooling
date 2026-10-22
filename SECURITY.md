@@ -18,7 +18,8 @@ on this repository. Do not open a public issue for security reports.
 - The two published container images
   (`ghcr.io/www8351/docker-devops-tooling/{counter,dockerctl}`)
 - The `dockerctl` Python CLI
-- The compose stack definition and GitHub Actions workflows
+- The compose stack definition, the Helm chart (`deploy/chart`) and the
+  GitHub Actions workflows
 
 ## Verifying image signatures
 
@@ -61,6 +62,11 @@ regexp above matches both. To pin a release exactly, use
   endpoint probes gate the merge.
 - Compose services run read-only with all capabilities dropped and none
   added back, bounded logging, resource limits, and `no-new-privileges`.
+- The Helm chart runs every pod non-root with seccomp `RuntimeDefault`, a
+  read-only root filesystem, no privilege escalation, no capabilities and no
+  service account token, behind default-deny NetworkPolicies. CI installs it
+  on kind in a namespace that enforces the restricted Pod Security Standard
+  and proves the NetworkPolicy blocks traffic it does not allow.
 - Published ports bind to `127.0.0.1` unless `WEB_BIND_ADDR` /
   `ADMIN_BIND_ADDR` say otherwise.
 - Portainer and Grafana admin passwords come from generated secret files
@@ -101,3 +107,6 @@ needs both docker.sock and the containerd socket, and neither can be
 narrowed to read-only. It reads the host cgroup tree from `/sys` instead,
 which means containers appear by id rather than by name and per-container
 network counters are not collected.
+
+The reasoning behind each of these choices, and the alternatives that were
+rejected, is recorded in the [architecture decision records](docs/adr/README.md).

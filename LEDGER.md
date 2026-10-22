@@ -8,18 +8,26 @@ Every entry uses the same three lines: Issue, Action, Status.
 
 ## ISSUES
 
-### Next action: Phase 4, Helm chart on kind
+### Next action: owner review of the Phase 5 PR, then the v0.3.0 tag
 
-Issue:  Phase 4 of the 0.3.0 roadmap (#12) is in progress on branch ccr-1ddb6a39-8xlw9d, restarted from main at 8aa5aa9.
-Action: Ship commits 4.1 to 4.5, open a draft PR, drive CI green, stop for owner merge.
-Status: IN PROGRESS
+Issue:  Phase 5 of the 0.3.0 roadmap (#15, #17, docs accuracy, release prep) is complete on branch ccr-1ddb6a39-8xlw9d; it is the last phase of the roadmap.
+Action: Owner: review and merge the Phase 5 PR, then push tag v0.3.0 from main. release.yml checks the tag against cli/pyproject.toml (0.3.0), the chart appVersion (0.3.0) and the CHANGELOG section before anything is published. Pushing tags is not authorized for the agent.
+Status: OPEN
+
+Issue:  Checks added during the roadmap are not in the main-protection ruleset: test, workflow-lint, publish-dry-run, helm.
+Action: Owner decides whether to add them as required status checks. Editing the ruleset is not authorized for the agent.
+Status: OPEN
 
 ### Security and correctness
 
 ### CI and reproducibility
 
-Issue:  Every astral-sh/setup-uv step resolves the latest uv (0.13.1 in the Phase 3 runs) while cli/Dockerfile pins uv 0.11.32, so CI and the image can drift.
+Issue:  Every astral-sh/setup-uv step resolves the latest uv while cli/Dockerfile pins one (0.11.32, then 0.13.5 after Dependabot commit 7435c3e on main), so CI and the image can drift.
 Action: Pin a uv version in the setup-uv steps, or record why not. Raised in the PR #77 body; not yet decided.
+Status: OPEN
+
+Issue:  main now runs nginx 1.31.6 (Dependabot bump merged to main as 589f9c6). nginx's odd minor versions are its mainline line; D9 chose the stable line, and Dependabot will keep proposing mainline releases.
+Action: Owner decides: keep 1.31 (mainline), or return compose and chart to 1.30 and add a Dependabot ignore for odd nginx minors. The chart follows whatever compose runs, as D14 requires.
 Status: OPEN
 
 ### Code quality
@@ -27,22 +35,22 @@ Status: OPEN
 ### Documentation
 
 Issue:  README layout tree, CLI command counts and remaining tables predate this roadmap.
-Action: Phase 5.3 refreshes layout, counts and the Kubernetes and CI sections.
-Status: OPEN
+Action: Phase 5.3 refreshed layout, counts, tasks and links, and added a full Hebrew section.
+Status: DONE
 
 ### Features closed as completed without code (milestone v0.3.0)
 
 Issue:  #12 Helm chart for nginx, httpd, counter validated on kind does not exist.
-Action: Phase 4.
-Status: OPEN
+Action: Phase 4 shipped deploy/chart and the CI helm job (PR #78, merged as 3d9c57f).
+Status: DONE
 
 Issue:  #15 ADRs in docs/adr do not exist.
-Action: Phase 5.1.
-Status: OPEN
+Action: Phase 5.1 added docs/adr with records 0001 to 0014.
+Status: DONE
 
 Issue:  #17 demo GIF from docs/assets/demo.tape was never rendered or committed.
-Action: Phase 5.2.
-Status: OPEN
+Action: Phase 5.2 rendered docs/assets/demo.gif from a rewritten tape.
+Status: DONE
 
 ### Open Dependabot PRs
 
@@ -50,7 +58,41 @@ Status: OPEN
 
 ## ACTIONS
 
+### 2026-10-22
+
+Issue:  CI on main went red after 589f9c6 (owner merge of the Dependabot nginx-unprivileged 1.31.6 branch): helm failed with "chart nginx image differs from compose: nginxinc/nginx-unprivileged:1.31.6-alpine3.24@sha256:884e0b7f42f303641b0f4e78755aea647521dca0b89ca3be7992ad78b5c07434" (run 39756370310, attempt 2). The same check had failed on the Dependabot PR (run 39721046953). This is the D14 sync check working as designed: the compose bump did not update deploy/chart/values.yaml. Every other job on that run passed, stack-test included.
+Action: Merged origin/main into ccr-1ddb6a39-8xlw9d (the open PR #79 branch; no conflicts). Reproduced the CI step locally (same message, exit 1), then set the chart's nginx tag and digest to the compose ones and bumped the chart version to 0.1.1. Local: the sync step prints both images and exits 0; helm lint --strict 1 chart(s) linted, 0 chart(s) failed; kubeconform Valid: 11. README stack table and sample output and the CHANGELOG nginx line now say 1.31; the deploy examples and the demo tape keep 1.30.6, which is only an example image. Raised the mainline question as an owner issue.
+Status: DONE
+
 ### 2026-10-18
+
+Issue:  First main run after merging PR #78, and LEDGER close-out for the 0.3.0 roadmap (Phase 5.6).
+Action: CI run 39171496751 on 3d9c57f: every job success, helm included (restricted namespace, install, helm test, NetworkPolicy probe), and publish (counter) and publish (dockerctl) pushed by digest, scanned both platforms, signed and tagged. LEDGER: the next action is now the owner's merge and tag; ruleset additions and the setup-uv pin stay OPEN as owner decisions; #12, #15 and #17 are DONE; decisions keep their status (owner rulings FINAL, technical choices REVISIT).
+Status: DONE
+
+Issue:  Release 0.3.0 preparation (Phase 5.5); the chart runs counter at its appVersion, but nothing tied that to the release tag (D15).
+Action: cli/pyproject.toml 0.3.0 and uv lock (Updated dockerctl v0.2.1 -> v0.3.0; uv lock --check clean); deploy/chart appVersion already 0.3.0. release.yml guard also requires deploy/chart/Chart.yaml appVersion to equal the tag. CHANGELOG: [Unreleased] cut to [0.3.0] - 2026-10-18 with a summary line, Phase 5 items added (ADRs, demo GIF, Hebrew README, contributor docs), the release guard bullet updated, compare links for 0.3.0 and the new Unreleased. README: v0.3.0 in highlights and the releases section, the appVersion check described in English and Hebrew. Local: the guard script extracted from release.yml printed "v0.3.0 matches cli/pyproject.toml (0.3.0) and the chart appVersion" (exit 0), and exited 1 for v0.3.1 (pyproject mismatch), v0.3.0-rc.1 (pyproject mismatch) and appVersion 0.2.1 ("appVersion is 0.2.1, expected 0.3.0"); before the changelog cut it exited 1 with "CHANGELOG.md has no '## [0.3.0]' section". pytest 75 passed, coverage 100.00%, dockerctl --version 0.3.0; actionlint clean; zizmor no findings; helm lint passes.
+Status: DONE
+
+Issue:  CONTRIBUTING, SECURITY and the PR template do not cover the chart, the ADRs or the release guard (Phase 5.4).
+Action: CONTRIBUTING: chart:lint and kind:test in the gates table, chart conventions (restricted profile, images and httpd.conf in step with compose, bump the chart version), the ADR rule, and release steps naming pyproject version, task lock, chart appVersion, changelog section and compare link. SECURITY: the chart is in scope, a posture bullet for the chart and its CI proof, and a pointer to the ADRs. PR template: chart and ADR checklist items. Em dashes removed. The release guard on the chart appVersion that CONTRIBUTING now describes lands in Phase 5.5.
+Status: DONE
+
+Issue:  README predates the roadmap in places (layout tree, task list, test count) and its Hebrew part was a short intro that mixed English words into Hebrew sentences (Phase 5.3).
+Action: README: tagline names the Helm chart; demo GIF embedded; highlights updated (75 tests, the chart on kind under restricted, the ADRs); architecture diagram and layer table gain the chart; layout tree rewritten from the actual tree (compose subfolders, deploy/chart, cli modules and tests, scripts, docs/adr, workflows); task list matches every Taskfile task; design principles and links gain the ADRs; every em dash removed. A full Hebrew section now follows the English one and mirrors every section, with tables and the full command reference pointed to the English part; English terms in it sit in backticks only, and the top intro links to it. Local: no em or en dashes; no mention of LEDGER, CLAUDE or AI; every relative link resolves; a scan of Hebrew lines finds no Latin word outside backticks or link targets except the bilingual "What is this? · מה זה?" heading.
+Status: DONE
+
+Issue:  #17 demo GIF from docs/assets/demo.tape was never rendered (Phase 5.2); the old tape called dockerctl without installing it and showed none of the hardening.
+Action: Rewrote the tape: bash with a plain prompt and Wait on it instead of fixed sleeps, dockerctl from the locked project; task up (secrets, wait for health), compose ps, a hardened dockerctl deploy, docker inspect showing read-only=true cap-drop=[ALL] pids=256, curl returning 200, rm --force, task down. Rendered here with vhs v0.12.1 (Go module proxy), ttyd 1.7.4 (Ubuntu archive), ffmpeg and the preinstalled Playwright Chromium (VHS_NO_SANDBOX=1, running as root). Result docs/assets/demo.gif: 998537 bytes, 38.64s, 1100x620; frames checked by eye. The counter image in the recording was built locally from the runtime stage of images/counter/Dockerfile without its shellcheck stage, because apk mirrors are unreachable from this machine; the script and base image are the same. The first render failed because the wait pattern expected a trailing space after the prompt.
+Status: DONE
+
+Issue:  Phase 4 PR #78.
+Action: Owner merged PR #78 into main as 3d9c57f (head 229e36c, all 15 run checks green including helm, publish skipped). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease. The pending check-in was cancelled.
+Status: DONE
+
+Issue:  #15 ADRs in docs/adr do not exist (Phase 5.1).
+Action: New docs/adr: README index, template.md (context, decision, alternatives, consequences), and records 0001 to 0014: recording decisions, compose owns state, typed non-interactive CLI, multi-stage Alpine non-root images, SHA-pinned actions, Trivy gate on fixable HIGH and CRITICAL, explicit socket holders, cAdvisor without engine sockets (D1), loopback binds (D3), file secrets (D4), uv lock (D7), unprivileged web servers (D9), publish by digest (D11), Helm chart under the restricted profile. Local: every relative link resolves; no em or en dashes.
+Status: DONE
 
 Issue:  helm failed on 8fbd584 at the last assertion: "reached the Kubernetes API: the NetworkPolicy is not enforced". Everything before it passed: the namespace refused a bare pod, the chart installed under enforce=restricted, all three Deployments rolled out, and helm test printed nginx: 200 and httpd: 200. The check was wrong, not the policy: traffic between a pod and its own node is always allowed by the NetworkPolicy model, and on a one-node kind cluster the API server runs on that node.
 Action: Dropped tests.checkNetworkPolicy and the API probe from the chart (values, schema, test pod). CI instead execs into nginx, which may open no connection: a fetch of its own page must succeed (wget and exec work), and a fetch of the httpd pod IP on 8080, the pod the test pod just reached, must fail with a network error (timed out, refused, no route or unreachable). README and Taskfile updated. Local: actionlint clean, zizmor no findings, helm lint --strict passes, kubeconform Valid: 11; busybox wget -T 5 against a DROP rule printed "wget: download timed out" with exit 1 after 5s; the step logic passes on timed out and refused, and fails on success and on exec errors.
@@ -329,7 +371,7 @@ Action: values.yaml pins nginx and httpd to the same tag and digest as compose/d
 Status: REVISIT
 
 Issue:  D15 counter image in the chart.
-Action: Defaults to ghcr.io/www8351/docker-devops-tooling/counter at the chart appVersion (0.3.0, set ahead of the release because the 0.2.x images lack counter.sh --healthcheck). CI loads a local build into kind with pullPolicy Never. The release guard should later assert appVersion matches the tag.
+Action: Defaults to ghcr.io/www8351/docker-devops-tooling/counter at the chart appVersion (0.3.0, set ahead of the release because the 0.2.x images lack counter.sh --healthcheck). CI loads a local build into kind with pullPolicy Never. The release guard asserts appVersion matches the tag.
 Status: REVISIT
 
 Issue:  Alertmanager and Loki in the observability profile.

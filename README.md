@@ -2,8 +2,8 @@
 
 # 🐳 dockerctl a hardened Docker operations toolkit
 
-**Typed Python CLI · declarative hardened compose stack · supply-chain-gated CI**
-*CLI פייתון מטופס · סטאק compose מוקשח ודקלרטיבי · CI עם שערי אבטחת שרשרת-אספקה*
+**Typed Python CLI · declarative hardened compose stack · Helm chart under the restricted profile · supply-chain-gated CI**
+*כלי שורת פקודה מטופס בפייתון · מחסנית מוקשחת ודקלרטיבית · תרשים להתקנה ב־`Kubernetes` · אינטגרציה רציפה עם שערי אבטחה*
 
 [![CI](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/ci.yml)
 [![Release](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml/badge.svg)](https://github.com/www8351/Docker-DevOps-Tooling/actions/workflows/release.yml)
@@ -40,10 +40,11 @@ default, and admin passwords come from **generated secrets**.
 
 ### 🇮🇱 עברית
 
-ערכת כלים ל-Docker ברמת production: **compose מחזיק את המצב**, **CLI פייתון מטופס** מחזיק
-את הפעולות הדינמיות, **Taskfile** מחבר ביניהם, ו-**CI אוכף הכול**. כל קונטיינר ארוך-טווח
-רץ עם **מערכת קבצים לקריאה בלבד, הפלת יכולות ו-`no-new-privileges`**, רובם רצים ללא root,
-הפורטים נקשרים כברירת מחדל ל-**loopback**, וסיסמאות הניהול מגיעות מ-**סודות שנוצרים אוטומטית**.
+ערכת כלים מוקשחת להפעלת קונטיינרים: **קובץ `compose` מחזיק את המצב**, **כלי שורת פקודה מטופס**
+מבצע את הפעולות המשתנות, **`Taskfile`** מחבר ביניהם, ו**האינטגרציה הרציפה אוכפת הכול**. כל
+קונטיינר רץ עם **מערכת קבצים לקריאה בלבד, בלי הרשאות מיוחדות ועם `no-new-privileges`**, רובם
+כמשתמש שאינו `root`, הפורטים נקשרים כברירת מחדל **לכתובת המקומית בלבד**, וסיסמאות הניהול
+**נוצרות אוטומטית**. [לגרסה העברית המלאה](#-עברית)
 
 </div>
 
@@ -51,12 +52,16 @@ default, and admin passwords come from **generated secrets**.
 </tr>
 </table>
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="task up, a hardened dockerctl deploy, docker inspect and task down in a terminal" width="900">
+</p>
+
 ```console
 $ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
 NAMES                 IMAGE                                           STATUS                    PORTS
 compose-counter-1     compose-counter                                 Up 28 seconds (healthy)
 compose-httpd-1       httpd:2.4.69-alpine3.24                         Up 28 seconds (healthy)   127.0.0.1:8081->8080/tcp
-compose-nginx-1       nginxinc/nginx-unprivileged:1.30.6-alpine3.24   Up 28 seconds (healthy)   127.0.0.1:8080->8080/tcp
+compose-nginx-1       nginxinc/nginx-unprivileged:1.31.6-alpine3.24   Up 28 seconds (healthy)   127.0.0.1:8080->8080/tcp
 compose-portainer-1   portainer/portainer-ce:2.39.8                   Up 28 seconds             8000/tcp, 9443/tcp, 127.0.0.1:9000->9000/tcp
 ```
 
@@ -65,8 +70,10 @@ compose-portainer-1   portainer/portainer-ce:2.39.8                   Up 28 seco
 - **78 MB Ubuntu → ~7 MB hardened Alpine** the [before/after](#-counter--from-78-mb-of-attack-surface-to-a-few-mb) of the counter image
 - **Read-only containers, `cap_drop: ALL`, `no-new-privileges`, loopback ports, generated admin secrets** see [`compose/docker-compose.yml`](compose/docker-compose.yml)
 - **SHA-pinned actions, Trivy gate, CycloneDX SBOMs** see [`ci.yml`](.github/workflows/ci.yml)
-- **Typed CLI: mypy strict, 45 tests, 100% coverage** see [`cli/`](cli/)
-- **Released [v0.2.1](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.2.1)** — multi-arch, cosign-signed, attested images on GHCR + a [CHANGELOG](CHANGELOG.md)
+- **Typed CLI: mypy strict, 75 tests, 100% coverage** see [`cli/`](cli/)
+- **Helm chart admitted under the restricted Pod Security Standard**, installed and tested on kind in CI, see [Kubernetes](#%EF%B8%8F-kubernetes-helm-chart)
+- **Every trade-off written down** in [architecture decision records](docs/adr/README.md)
+- **Released [v0.3.0](https://github.com/www8351/Docker-DevOps-Tooling/releases/tag/v0.3.0)**: multi-arch, cosign-signed, attested images on GHCR and a [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -101,6 +108,9 @@ flowchart TD
     Obs -. scrapes .-> Nginx
 
     CLI --> Docker[(Docker Engine)]
+
+    Dev --> Chart[deploy/chart<br/>Helm, restricted PSS]
+    Chart --> K8s[(Kubernetes<br/>nginx · httpd · counter)]
 ```
 
 **Separation of concerns** each tool owns exactly one job:
@@ -108,6 +118,7 @@ flowchart TD
 | Layer | Owns | Tool |
 |-------|------|------|
 | 🧱 Infrastructure | container lifecycle, networks, volumes, state | `docker-compose` |
+| ☸️ Kubernetes | the web tier on a cluster | Helm chart |
 | 🐍 Logic | dynamic image/container ops, error handling | Python + Typer |
 | ▶️ Orchestration | day-to-day commands | Taskfile |
 | 🤖 Quality gate | validation, no humans | GitHub Actions |
@@ -119,27 +130,38 @@ flowchart TD
 ```
 .
 ├── compose/
-│   ├── docker-compose.yml   # declarative stack (nginx, httpd, portainer, counter)
+│   ├── docker-compose.yml   # declarative stack: nginx, httpd, portainer, counter (+ profiles)
+│   ├── .env.example         # bind addresses + ports  →  copy to .env
 │   ├── httpd/httpd.conf     # unprivileged httpd config, shared with the chart
-│   └── .env.example         # bind addresses + ports  →  copy to .env
+│   ├── nginx/status.conf    # stub_status for the exporter (never published)
+│   ├── prometheus/          # scrape config
+│   ├── grafana/             # provisioned datasource + dashboard
+│   └── secrets/             # generated admin passwords (gitignored)
 ├── deploy/chart/            # Helm chart for the web tier (restricted PSS)
-├── images/
-│   └── counter/             # custom image, built by compose
-│       ├── Dockerfile       # multi-stage, hardened, Alpine, non-root
-│       └── counter.sh       # POSIX sh (no bash needed)
-├── web/
-│   └── index.html           # served by nginx from a read-only mount
-├── cli/                     # dockerctl — non-interactive Python CLI
-│   ├── Dockerfile           # multi-stage build → slim Alpine, non-root
-│   ├── .dockerignore
+├── images/counter/          # custom image: multi-stage Alpine, non-root
+│   ├── Dockerfile
+│   └── counter.sh           # POSIX sh with a heartbeat healthcheck
+├── cli/                     # dockerctl, the non-interactive Python CLI
+│   ├── Dockerfile           # builder (venv from uv.lock) → slim Alpine runtime, non-root
 │   ├── pyproject.toml
-│   └── dockerctl/
-│       ├── __main__.py      # entrypoint + subcommand wiring
-│       ├── _docker.py       # typed wrapper around the docker CLI
-│       ├── images.py        # pull / rm
-│       └── containers.py    # ls / rm / deploy
+│   ├── uv.lock              # every dependency, hash-locked
+│   ├── dockerctl/
+│   │   ├── __main__.py      # entrypoint + subcommand wiring
+│   │   ├── _docker.py       # typed wrapper around the docker CLI
+│   │   ├── _cli.py          # shared error handling
+│   │   ├── images.py        # images group
+│   │   ├── containers.py    # containers group (hardened deploy)
+│   │   └── compose.py       # compose group (up / down / ps)
+│   └── tests/               # mocked unit suite, 100% coverage
+├── scripts/
+│   ├── gen-secrets.sh       # create the admin password files
+│   └── wait-prom-targets.sh # CI: wait until every Prometheus target is up
+├── web/index.html           # served by nginx from a read-only mount
+├── docs/
+│   ├── adr/                 # architecture decision records
+│   └── assets/              # demo GIF + the vhs tape that renders it
 ├── Taskfile.yml             # engineering entrypoint
-└── .github/workflows/ci.yml # lint, test, scan and boot the stack on every PR
+└── .github/workflows/       # ci, the shared _publish, release, codeql
 ```
 
 ---
@@ -189,7 +211,7 @@ file itself, where Dependabot can bump it.
 
 | Service | Image | Default port | Health | Network | Runs as | Notes |
 |---------|-------|--------------|--------|---------|---------|-------|
-| `nginx` | `nginxinc/nginx-unprivileged:1.30.6-alpine3.24` | `127.0.0.1:8080` | `wget` probe | `web`, `nginx-status` | UID 101 | serves `web/` read-only, no capabilities |
+| `nginx` | `nginxinc/nginx-unprivileged:1.31.6-alpine3.24` | `127.0.0.1:8080` | `wget` probe | `web`, `nginx-status` | UID 101 | serves `web/` read-only, no capabilities |
 | `httpd` | `httpd:2.4.69-alpine3.24` | `127.0.0.1:8081` | `wget` probe | `web` | UID 82 (`www-data`) | [`compose/httpd/httpd.conf`](compose/httpd/httpd.conf) on port 8080, no capabilities |
 | `portainer` | `portainer/portainer-ce:2.39.8` | `127.0.0.1:9000` | none (scratch image) | `mgmt` | root | Docker UI; admin from a generated secret |
 | `counter` | built from `images/counter/` | none | heartbeat probe | none | UID 10001 | incrementing counter; hardened Alpine (see [suite](#-devops-tooling--containerization-suite)) |
@@ -288,7 +310,7 @@ the build toolchain never reaches the final image, and neither does root.
 ### 🔢 `counter` from 78 MB of attack surface to a few MB
 
 The original image ran a trivial bash loop on `ubuntu:24.04` while installing
-`openssh-server`, `sshpass`, `tcpdump`, `net-tools`, and `python3` — **none of which the
+`openssh-server`, `sshpass`, `tcpdump`, `net-tools`, and `python3`, **none of which the
 script uses**. `sshpass` and `tcpdump` alone are exactly what an image scanner flags first.
 
 | | Before ❌ | After ✅ |
@@ -394,8 +416,8 @@ commands exit 1 with docker's own usage error). Unlike `docker compose`, `--file
 | `images build <path> -t <tag>` | build menus | `dockerctl images build images/counter -t counter:dev` |
 | `images pull <ref>` | `pull_images.sh` | `dockerctl images pull nginx:latest` |
 | `images rm <id> [-f]` | `remove_images.sh` | `dockerctl images rm nginx:latest` |
-| `images tag <src> <target>` | — | `dockerctl images tag counter:dev ghcr.io/acme/counter:1.0` |
-| `images push <ref>` | — | `dockerctl images push ghcr.io/acme/counter:1.0` |
+| `images tag <src> <target>` | new | `dockerctl images tag counter:dev ghcr.io/acme/counter:1.0` |
+| `images push <ref>` | new | `dockerctl images push ghcr.io/acme/counter:1.0` |
 | `containers ls [-a] [--json]` | menu listing | `dockerctl containers ls --all` |
 | `containers rm <id> [-f]` | `remove_Container.sh` | `dockerctl containers rm web --force` |
 | `containers deploy <img>` | deploy menus | `dockerctl containers deploy nginxinc/nginx-unprivileged:1.30.6-alpine3.24 -n web -p 8080:8080` |
@@ -420,19 +442,26 @@ The CLI is **mypy-strict clean** and its test suite is **coverage-gated at
 [`Taskfile.yml`](Taskfile.yml) is the one entrypoint everyone (and CI) uses.
 
 ```bash
-task            # list all tasks
-task secrets    # generate missing admin passwords
-task up         # start the stack and wait for health
-task obs:up     # stack + observability profile
-task down       # stop + remove
-task build      # build images
-task pull       # pull images
-task logs       # tail logs
-task clean      # down + volumes
-task lint       # run every linter locally
-task cli -- compose ps                 # proxy to dockerctl (runs from the repo root)
-task chart:lint                        # helm lint --strict
-task kind:test                         # chart on a local kind cluster, then helm test
+task                    # list all tasks
+task secrets            # generate missing admin passwords
+task up                 # start the stack and wait for health
+task obs:up             # stack + observability profile
+task down               # stop + remove
+task build              # build images
+task pull               # pull images
+task logs               # tail logs
+task clean              # down + volumes
+task lint               # compose config + every pre-commit hook
+task test               # pytest from the lockfile, coverage gated
+task typecheck          # mypy strict
+task fmt                # ruff format + autofix
+task lock               # re-resolve cli/uv.lock
+task scan               # build both images and scan them with Trivy
+task sbom               # CycloneDX SBOMs into ./sbom/
+task cli -- compose ps  # proxy to dockerctl (runs from the repo root)
+task chart:lint         # helm lint --strict
+task chart:template     # render the chart
+task kind:test          # chart on a local kind cluster, then helm test
 ```
 
 ---
@@ -501,17 +530,17 @@ weekly, each waiting 7 days after a release before proposing it.
 ## 🚢 Releases & published images
 
 Tagging `vX.Y.Z` fires [`release.yml`](.github/workflows/release.yml). It first checks the tag
-against `cli/pyproject.toml` (and, for stable releases, that `CHANGELOG.md` has its section), then
+against `cli/pyproject.toml` and the chart's `appVersion` (and, for stable releases, that
+`CHANGELOG.md` has its section), then
 runs the **whole CI suite** on the tagged commit, then publishes through the same scan, sign and
 tag workflow as `main`: multi-arch, cosign-signed, semver-tagged images on GHCR plus a GitHub
 Release. Tags with a prerelease part (`v0.3.0-rc.1`) are marked as prereleases and never move
-`latest` or `major.minor`. The current
-released version is **0.2.1**. Curated notes live in
+`latest` or `major.minor`. The current release is **0.3.0**. Curated notes live in
 [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-docker pull ghcr.io/www8351/docker-devops-tooling/dockerctl:0.2.1
-docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.1
+docker pull ghcr.io/www8351/docker-devops-tooling/dockerctl:0.3.0
+docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.3.0
 ```
 
 ---
@@ -523,6 +552,7 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.1
 - **Meaningful exit codes** failures fail loudly and stop CI.
 - **One entrypoint** Taskfile, so nobody memorizes long commands.
 - **Right tool per job** compose for infra, Python for logic, Task to glue, CI to enforce.
+- **Decisions are recorded** every significant trade-off has an [ADR](docs/adr/README.md).
 
 ---
 
@@ -553,9 +583,196 @@ docker pull ghcr.io/www8351/docker-devops-tooling/counter:0.2.1
 - [CONTRIBUTING.md](CONTRIBUTING.md) setup, quality gates, conventions, release steps
 - [SECURITY.md](SECURITY.md) reporting vulnerabilities, security posture
 - [CHANGELOG.md](CHANGELOG.md) curated, Keep-a-Changelog format
+- [docs/adr](docs/adr/README.md) architecture decision records
+
+---
+
+<div dir="rtl">
+
+## 🇮🇱 עברית
+
+### מה זה
+
+ערכת כלים מוקשחת להפעלת קונטיינרים. קובץ `compose` מתאר את כל המחסנית ומחזיק את המצב שלה.
+כלי שורת פקודה מטופס בפייתון, `dockerctl`, מבצע את הפעולות המשתנות. קובץ `Taskfile.yml` מחבר
+ביניהם, והאינטגרציה הרציפה אוכפת הכול בכל בקשת מיזוג. כל קונטיינר רץ עם מערכת קבצים לקריאה
+בלבד, בלי הרשאות מיוחדות ועם `no-new-privileges`. רוב הקונטיינרים רצים כמשתמש קבוע שאינו `root`.
+הפורטים נקשרים כברירת מחדל לכתובת המקומית בלבד, וסיסמאות הניהול נוצרות אוטומטית. תרשים
+`Helm` מריץ את שכבת הרשת גם ב־`Kubernetes`, תחת תקן האבטחה המחמיר ביותר.
+
+### עיקרי הדברים
+
+- תמונת המונה ירדה מכ־78 מגה על בסיס `ubuntu` לכ־7 מגה על בסיס `alpine`, בלי שום חבילה מיותרת.
+- כל הקונטיינרים לקריאה בלבד, בלי הרשאות, עם פורטים מקומיים וסיסמאות שנוצרו אוטומטית.
+- כל פעולה באינטגרציה הרציפה נעוצה לגרסה מדויקת, עם סריקת פגיעויות ורשימת רכיבים לכל תמונה.
+- כלי שורת הפקודה עובר בדיקת טיפוסים מחמירה, עם 75 בדיקות וכיסוי מלא.
+- התרשים מותקן ונבדק על אשכול `kind` בכל בקשת מיזוג, תחת תקן האבטחה `restricted`.
+- כל החלטה משמעותית מתועדת ב[רשומות ההחלטות](docs/adr/README.md).
+
+### למה זה קיים
+
+הפרויקט התחיל כאוסף תפריטים אינטראקטיביים בשפת המעטפת, שנכתבו לפני שנים כדי ללמוד את
+העבודה עם קונטיינרים. הם עבדו מול מקלדת, אבל היו שבירים ואי אפשר היה להריץ אותם אוטומטית.
+הכול נבנה מחדש כתצורה דקלרטיבית, ככלי שעובד רק עם דגלים, וכבדיקות שרצות על כל בקשת מיזוג.
+התוצאה רצה בלי התערבות, ניתנת לשחזור, ובטוחה להרצה בצנרת.
+
+### מבנה
+
+כל כלי אחראי על דבר אחד:
+
+| שכבה | אחראית על | כלי |
+|------|-----------|-----|
+| תשתית | מחזור חיי הקונטיינרים, רשתות, אחסון ומצב | `docker compose` |
+| אשכול | שכבת הרשת על `Kubernetes` | `deploy/chart` |
+| לוגיקה | פעולות משתנות על תמונות וקונטיינרים, טיפול בשגיאות | `dockerctl` |
+| תזמור | הפקודות היומיומיות | `Taskfile.yml` |
+| שער איכות | בדיקה אוטומטית, בלי בני אדם | `GitHub Actions` |
+
+מבנה התיקיות המלא מופיע בחלק האנגלי למעלה.
+
+### דרישות
+
+- מנוע קונטיינרים עם תוסף `compose`, כדי להריץ את המחסנית.
+- פייתון בגרסה 3.11 ומעלה, כדי להריץ את `dockerctl`.
+- הכלי `uv`, מומלץ, לסביבת פיתוח נעולה ולבדיקות לפני כל שמירה.
+- הכלי `task`, אופציונלי, כמריץ משימות. לכל משימה יש פקודה מקבילה ישירה.
+- הכלים `helm`, `kind` ו־`kubectl`, אופציונליים, להתקנת התרשים ולבדיקתו.
+
+### התחלה מהירה
+
+```bash
+cp compose/.env.example compose/.env   # כתובות ופורטים
+task secrets                           # יצירת סיסמאות הניהול
+task up                                # הפעלה והמתנה עד שהכול תקין
+#    nginx     → http://localhost:8080
+#    httpd     → http://localhost:8081
+#    portainer → http://localhost:9000
+task down                              # עצירה והסרה
+```
+
+הסיסמאות נשמרות בתיקייה `compose/secrets/`, שאינה נשמרת במאגר. בלי הקבצים האלה המחסנית לא
+עולה, כי אין שום סיסמת ברירת מחדל.
+
+### המחסנית
+
+השירותים מוגדרים בקובץ [`compose/docker-compose.yml`](compose/docker-compose.yml). כל תמונה נעוצה
+לתגית ולתקציר מדויקים בתוך הקובץ עצמו, והעדכונים מגיעים אוטומטית כבקשות מיזוג.
+
+| שירות | פורט מקומי | בדיקת תקינות | רץ כ־ |
+|-------|------------|--------------|-------|
+| `nginx` | `8080` | בקשת `wget` | משתמש 101 |
+| `httpd` | `8081` | בקשת `wget` | משתמש 82 |
+| `portainer` | `9000` | אין, התמונה ריקה מכלים | `root` |
+| `counter` | אין | קובץ דופק | משתמש 10001 |
+
+כל שירות רץ עם מערכת קבצים לקריאה בלבד, כשרק נתיבי כתיבה ידועים יושבים בזיכרון. כל ההרשאות
+מוסרות ואף אחת לא מוחזרת. יש מגבלות זיכרון ומעבד, ויומנים בגודל חסום. רק `portainer` מחזיק
+את השקע של המנוע, לבדו ברשת הניהול. כלי שורת הפקודה מקבל אותו רק כשמעבירים אותו במפורש.
+
+### פרופיל הניטור
+
+```bash
+task obs:up
+#    prometheus → http://localhost:9090
+#    grafana    → http://localhost:3000
+```
+
+ארבעה שירותים נוספים: `prometheus`, `grafana`, `cadvisor` ו־`nginx-exporter`. כולם לקריאה בלבד,
+בלי הרשאות, ברשת נפרדת. הלוח של `grafana` מוגדר מראש מקבצים במאגר. השירות `cadvisor` לא מקבל
+שום שקע של המנוע, וקורא רק את `/sys`. לכן הקונטיינרים מזוהים בלוח לפי מזהה קצר ולא לפי שם.
+האינטגרציה הרציפה מפעילה גם את הפרופיל הזה ונכשלת אם יעד ניטור כלשהו לא זמין.
+
+### תרשים ל־`Kubernetes`
+
+התיקייה [`deploy/chart`](deploy/chart) מתקינה את שכבת הרשת, כלומר `nginx`, `httpd` ו־`counter`,
+עם אותה הקשחה כמו במחסנית. כל רכיב רץ כמשתמש הקבוע של התמונה שלו, עם פרופיל `RuntimeDefault`,
+מערכת קבצים לקריאה בלבד, בלי הסלמת הרשאות ובלי שום הרשאה מיוחדת. לכן מרחב שמות שאוכף את
+התקן `restricted` מקבל את ההתקנה. חשבון השירות לא מקבל אסימון, ומדיניות הרשת חוסמת כל תעבורה
+מלבד בקשות לפורט 8080 של שרתי הרשת. התמונות וקובץ התצורה של `httpd` זהים לאלה של המחסנית,
+והאינטגרציה הרציפה נכשלת אם הם נפרדים.
+
+```bash
+kubectl create namespace stack
+kubectl label namespace stack pod-security.kubernetes.io/enforce=restricted
+helm install devops-stack deploy/chart -n stack --wait
+helm test devops-stack -n stack --logs
+```
+
+### התמונות
+
+שתי תמונות, `counter` ו־`dockerctl`. כל אחת נבנית בשלבים על בסיס `alpine` נעוץ, ורצה כמשתמש
+10001. כלי הבנייה לא מגיעים לתמונה הסופית. תמונת המונה בודקת את הסקריפט שלה כבר בזמן הבנייה,
+ובדיקת התקינות שלה נכשלת אם הלולאה נעצרת. תמונת כלי שורת הפקודה מתקינה בדיוק את הגרסאות
+שבקובץ הנעילה, ולא מכילה שום שקע מובנה. שתיהן נסרקות לפגיעויות בכל בקשת מיזוג.
+
+### כלי שורת הפקודה
+
+הכלי `dockerctl` מבצע את הפעולות שהמחסנית לא צריכה להחזיק: משיכה, מחיקה, הפעלה חד פעמית, וגם
+מחזור החיים של המחסנית עצמה. הוא עובד רק עם דגלים, מחזיר קוד יציאה משמעותי, וכותב שגיאות לפלט
+השגיאות. כל ערך שמועבר אליו מגיע למנוע אחרי `--`, כך ששם שמתחיל במקף לא ייקרא אף פעם כדגל.
+
+```bash
+dockerctl compose up --profile observability
+dockerctl containers deploy nginxinc/nginx-unprivileged:1.30.6-alpine3.24 -n web -p 8080:8080
+dockerctl containers stats --json
+```
+
+הפקודה `containers deploy` מוקשחת כברירת מחדל: מערכת קבצים לקריאה בלבד, בלי הרשאות, מגבלת
+תהליכים וזיכרון, ופורט שנקשר לכתובת המקומית. תמונה שצריכה יותר מבקשת זאת במפורש בדגל. הדגל
+`--no-harden` מבטל את ההקשחה ודוחה את דגלי ההקשחה במקום להתעלם מהם. הפקודות של `compose` רצות
+על המחשב המארח, כי התמונה לא כוללת את התוסף. טבלת הפקודות המלאה מופיעה בחלק האנגלי.
+
+### מריץ המשימות
+
+הקובץ [`Taskfile.yml`](Taskfile.yml) הוא נקודת הכניסה היחידה, גם לאנשים וגם לאינטגרציה הרציפה.
+הפקודה `task` לבדה מציגה את כל המשימות. הרשימה המלאה עם הסברים מופיעה בחלק האנגלי.
+
+### אינטגרציה רציפה
+
+כל בקשת מיזוג וכל דחיפה לענף הראשי מריצות, בלי התערבות:
+
+- בדיקת המחסנית, קבצי הבנייה, הסקריפטים, הקוד, הטיפוסים והבדיקות עם שער כיסוי.
+- הבדיקות על פייתון 3.12, 3.13 ו־3.14, ובדיקת אבטחה של קבצי העבודה עצמם.
+- בניית שתי התמונות, סריקת פגיעויות שחוסמת ממצאים חמורים, ורשימת רכיבים לכל תמונה.
+- הפעלת המחסנית המלאה, כולל הוכחה שהיא מסרבת לעלות בלי סיסמאות, ובדיקה חיה של כלי שורת הפקודה.
+- התקנת התרשים על `kind` תחת התקן המחמיר, הרצת `helm test`, והוכחה שמדיניות הרשת נאכפת.
+- בענף הראשי: פרסום לפי תקציר, סריקה של אותו תקציר בדיוק, חתימה, ורק אז הזזת התגיות.
+
+### גרסאות
+
+תגית מהצורה `vX.Y.Z` מפעילה את תהליך השחרור. הוא בודק שהתגית תואמת לגרסת הכלי ולגרסת התרשים,
+ושקיים לה סעיף ביומן השינויים, מריץ את כל הבדיקות על אותה גרסה, ומפרסם תמונות חתומות לכמה ארכיטקטורות. הערות
+השחרור נמצאות בקובץ [CHANGELOG.md](CHANGELOG.md).
+
+### עקרונות
+
+- תיאור דקלרטיבי של המצב הרצוי, במקום סקריפטים של פקודות.
+- אין שאלות ואין אינטראקציה, רק דגלים ומשתני סביבה.
+- קודי יציאה משמעותיים, כך שכשל עוצר את הצנרת.
+- נקודת כניסה אחת לכל הפקודות.
+- הכלי הנכון לכל משימה.
+- כל פשרה משמעותית מתועדת ב[רשומת החלטה](docs/adr/README.md).
+
+### תקלות נפוצות
+
+- **הכלי `task` לא מותקן:** אפשר להשתמש בפקודות `docker compose` המקבילות.
+- **פורט תפוס:** משנים את הפורט בקובץ `compose/.env` ומריצים שוב.
+- **השירות לא עולה בגלל קובץ סוד חסר:** מריצים `task secrets` לפני ההפעלה.
+- **סיסמת הניהול לא מתקבלת:** השירותים קוראים אותה רק כשנפח הנתונים שלהם נוצר. מאפסים אותה בממשק, או מריצים `task clean`.
+- **השירותים לא נגישים ממחשב אחר:** הפורטים נקשרים לכתובת המקומית. משנים את `WEB_BIND_ADDR` או `ADMIN_BIND_ADDR` בקובץ `compose/.env`.
+- **הקונטיינר של `dockerctl` לא מגיע לשקע:** התמונה רצה כמשתמש רגיל, ולכן מוסיפים לה את הקבוצה של השקע עם `--group-add`.
+
+### תרומה, אבטחה ויומן שינויים
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): התקנה, שערי איכות, מוסכמות ושחרור.
+- [SECURITY.md](SECURITY.md): דיווח על פגיעויות ותיאור מצב האבטחה.
+- [CHANGELOG.md](CHANGELOG.md): כל השינויים, לפי גרסה.
+- [docs/adr](docs/adr/README.md): רשומות ההחלטות.
+
+</div>
 
 ---
 
 <div align="center">
-<sub>From interactive bash menus to a supply-chain-gated toolkit — the <a href="CHANGELOG.md">CHANGELOG</a> tells the story.</sub>
+<sub>From interactive bash menus to a supply-chain-gated toolkit. The <a href="CHANGELOG.md">CHANGELOG</a> tells the story.</sub>
 </div>
