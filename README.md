@@ -61,7 +61,7 @@ $ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
 NAMES                 IMAGE                                           STATUS                    PORTS
 compose-counter-1     compose-counter                                 Up 28 seconds (healthy)
 compose-httpd-1       httpd:2.4.69-alpine3.24                         Up 28 seconds (healthy)   127.0.0.1:8081->8080/tcp
-compose-nginx-1       nginxinc/nginx-unprivileged:1.31.6-alpine3.24   Up 28 seconds (healthy)   127.0.0.1:8080->8080/tcp
+compose-nginx-1       nginxinc/nginx-unprivileged:1.30.6-alpine3.24   Up 28 seconds (healthy)   127.0.0.1:8080->8080/tcp
 compose-portainer-1   portainer/portainer-ce:2.39.8                   Up 28 seconds             8000/tcp, 9443/tcp, 127.0.0.1:9000->9000/tcp
 ```
 
@@ -211,7 +211,7 @@ file itself, where Dependabot can bump it.
 
 | Service | Image | Default port | Health | Network | Runs as | Notes |
 |---------|-------|--------------|--------|---------|---------|-------|
-| `nginx` | `nginxinc/nginx-unprivileged:1.31.6-alpine3.24` | `127.0.0.1:8080` | `wget` probe | `web`, `nginx-status` | UID 101 | serves `web/` read-only, no capabilities |
+| `nginx` | `nginxinc/nginx-unprivileged:1.30.6-alpine3.24` | `127.0.0.1:8080` | `wget` probe | `web`, `nginx-status` | UID 101 | serves `web/` read-only, no capabilities |
 | `httpd` | `httpd:2.4.69-alpine3.24` | `127.0.0.1:8081` | `wget` probe | `web` | UID 82 (`www-data`) | [`compose/httpd/httpd.conf`](compose/httpd/httpd.conf) on port 8080, no capabilities |
 | `portainer` | `portainer/portainer-ce:2.39.8` | `127.0.0.1:9000` | none (scratch image) | `mgmt` | root | Docker UI; admin from a generated secret |
 | `counter` | built from `images/counter/` | none | heartbeat probe | none | UID 10001 | incrementing counter; hardened Alpine (see [suite](#-devops-tooling--containerization-suite)) |
