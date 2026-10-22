@@ -470,7 +470,9 @@ task kind:test          # chart on a local kind cluster, then helm test
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request and every push
 to `main`, **fully unattended**, under least-privilege permissions, with every action **pinned to
-a commit SHA**, a timeout on every job, and no checkout keeping its token:
+a commit SHA**, a timeout on every job, and no checkout keeping its token. Jobs run on
+`ubuntu-24.04`, and uv is pinned to the version `cli/Dockerfile` builds with (`workflow-lint`
+fails if the two differ):
 
 **`lint` job** (Python 3.11, the oldest supported)
 1. ✅ **Compose** `docker compose config` validates the stack, and every published port must bind to loopback
@@ -523,7 +525,8 @@ On pull requests, **`publish-dry-run`** runs the same workflow against a throwaw
 
 [Dependabot](.github/dependabot.yml) keeps GitHub Actions (one grouped PR), `cli/uv.lock`, both
 Dockerfiles (including the pinned uv stage), and the digest-pinned compose images updated
-weekly, each waiting 7 days after a release before proposing it.
+weekly, each waiting 7 days after a release before proposing it. nginx stays on its stable line:
+the mainline odd minors (1.31, 1.33) are ignored.
 
 ---
 
@@ -737,6 +740,9 @@ dockerctl containers stats --json
 - הפעלת המחסנית המלאה, כולל הוכחה שהיא מסרבת לעלות בלי סיסמאות, ובדיקה חיה של כלי שורת הפקודה.
 - התקנת התרשים על `kind` תחת התקן המחמיר, הרצת `helm test`, והוכחה שמדיניות הרשת נאכפת.
 - בענף הראשי: פרסום לפי תקציר, סריקה של אותו תקציר בדיוק, חתימה, ורק אז הזזת התגיות.
+
+העבודות רצות על `ubuntu-24.04`, וגרסת `uv` נעוצה לגרסה שבקובץ `cli/Dockerfile`. הבדיקה נכשלת אם
+השתיים שונות. השרת `nginx` נשאר בענף היציב, והעדכונים האוטומטיים מתעלמים מגרסאות הפיתוח שלו.
 
 ### גרסאות
 

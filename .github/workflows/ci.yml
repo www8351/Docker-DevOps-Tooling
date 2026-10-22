@@ -21,9 +21,15 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# uv for every setup-uv step. Must equal the uv image tag in cli/Dockerfile,
+# which Dependabot bumps; the workflow-lint job fails while they differ, so a
+# uv bump updates this line in the same pull request.
+env:
+  UV_VERSION: "0.13.5"
+
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -64,6 +70,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: false
 
       - name: Install the locked environment
@@ -92,12 +99,25 @@ jobs:
   # on every run: block) and zizmor's security audits, including the online
   # ones (known-vulnerable or impostor action commits) with a read-only token.
   workflow-lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Assert CI pins the uv version cli/Dockerfile uses
+        run: |
+          want=$(sed -n 's|^FROM ghcr.io/astral-sh/uv:\([^@]*\)@.*|\1|p' cli/Dockerfile)
+          [ -n "$want" ] || { echo "no uv image tag found in cli/Dockerfile" >&2; exit 1; }
+          for f in .github/workflows/ci.yml .github/workflows/release.yml; do
+            got=$(sed -n 's/^  UV_VERSION: "\(.*\)"$/\1/p' "$f")
+            if [ "$got" != "$want" ]; then
+              echo "$f pins uv '$got', cli/Dockerfile uses '$want'" >&2
+              exit 1
+            fi
+            echo "$f -> uv $got"
+          done
 
       - name: actionlint
         run: |
@@ -107,6 +127,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: false
 
       - name: zizmor
@@ -117,7 +138,7 @@ jobs:
   # The rest of the supported range. Not a required status check in the
   # branch ruleset (lint covers 3.11), but publish and releases wait for it.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -131,6 +152,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: false
 
       - name: Run tests on Python ${{ matrix.python }}
@@ -138,7 +160,7 @@ jobs:
         run: uv run --locked --python "${{ matrix.python }}" --extra test pytest
 
   image:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -225,7 +247,7 @@ jobs:
   # into a CI assertion, and the curl probes prove the read-only/cap-dropped
   # services really serve traffic.
   stack-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -339,6 +361,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: false
 
       - name: dockerctl compose against the live stack (host)
@@ -358,7 +381,7 @@ jobs:
   # helm test fetches both web services, and the NetworkPolicy must block
   # what it does not allow. counter is built here and loaded into the node.
   helm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NS: stack
@@ -407,7 +430,7 @@ jobs:
           kubectl create namespace "$NS"
           kubectl label namespace "$NS" \
             pod-security.kubernetes.io/enforce=restricted \
-            pod-security.kubernetes.io/enforce-version=latest
+            pod-security.kubernetes.io/enforce-version=v1.37
           rc=0
           out=$(kubectl -n "$NS" run pss-probe --image=busybox --restart=Never --dry-run=server 2>&1) || rc=$?
           echo "$out"

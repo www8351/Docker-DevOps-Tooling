@@ -42,7 +42,9 @@ shipped in five reviewed phases. Several changes are breaking; see Changed.
   hashes; CI, the image and the hooks install from it.
 - Workflows: actionlint and zizmor in CI, CodeQL for Python and Actions,
   Trivy SARIF to code scanning, job timeouts, no persisted checkout tokens,
-  and a 7 day Dependabot cooldown.
+  and a 7 day Dependabot cooldown. Jobs run on `ubuntu-24.04`, uv is pinned
+  to the version `cli/Dockerfile` uses (CI fails if they differ), and the
+  kind namespace enforces a fixed Pod Security Standard version.
 
 ### Added
 

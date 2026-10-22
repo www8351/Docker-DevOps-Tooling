@@ -22,9 +22,9 @@ Status: OPEN
 
 ### CI and reproducibility
 
-Issue:  Every astral-sh/setup-uv step resolves the latest uv while cli/Dockerfile pins one (0.11.32, then 0.13.5 after Dependabot commit 7435c3e on main), so CI and the image can drift.
-Action: Pin a uv version in the setup-uv steps, or record why not. Raised in the PR #77 body; not yet decided.
-Status: OPEN
+Issue:  Every astral-sh/setup-uv step resolved the latest uv while cli/Dockerfile pins one (0.11.32, then 0.13.5 after Dependabot commit 7435c3e on main), so CI and the image could drift.
+Action: Owner ruling 2026-10-22 (pin what CI needs). UV_VERSION 0.13.5 in ci.yml and release.yml, checked against cli/Dockerfile by workflow-lint.
+Status: DONE
 
 Issue:  main ran nginx 1.31.6 (Dependabot bump merged as 589f9c6), the mainline line; D9 chose the stable line.
 Action: Owner ruling 2026-10-22: stay on 1.30. Compose and chart moved back to 1.30.6 and Dependabot ignores the odd minors 1.31 and 1.33.
@@ -59,6 +59,10 @@ Status: DONE
 ## ACTIONS
 
 ### 2026-10-22
+
+Issue:  Owner ruling 2026-10-22: pin what CI needs. Floating versions found: setup-uv installed the latest uv (no version input); the kind namespace enforced PSS version "latest"; every job ran on the moving ubuntu-latest label. Actions already pin their tools by commit SHA (trivy-action installs trivy v0.70.0, cosign-installer cosign v3.0.6, kind-action kind v0.33.0 with kubectl v1.37.1, setup-helm helm v4.3.1).
+Action: Workflow env UV_VERSION "0.13.5" in ci.yml and release.yml, passed to all five setup-uv steps; a new workflow-lint step fails unless both equal the uv image tag in cli/Dockerfile. PSS enforce-version v1.37 (the kind node's minor). runs-on ubuntu-24.04 in ci, _publish, release and codeql (what ubuntu-latest already resolved to: the runners reported CPython 3.12.3 at /usr/bin/python3, which is Ubuntu 24.04's). Left floating on purpose: setup-qemu's binfmt image (tonistiigi/binfmt:latest) and the BuildKit image buildx starts, which no Dependabot ecosystem can track; pinning them would go stale silently. Docs: README CI and Dependabot paragraphs (English and Hebrew), CONTRIBUTING, CHANGELOG. Local: actionlint clean, zizmor no findings; the uv check printed "ci.yml -> uv 0.13.5" and "release.yml -> uv 0.13.5" (exit 0), and with cli/Dockerfile set to 0.14.0 it failed with "pins uv '0.13.5', cli/Dockerfile uses '0.14.0'" (exit 1).
+Status: DONE
 
 Issue:  Phase 5 PR #79.
 Action: Owner merged PR #79 into main as 3e84050 (head f3e5eeb, all 15 run checks green, publish skipped). Branch ccr-1ddb6a39-8xlw9d restarted from main and force pushed with lease.
@@ -393,6 +397,10 @@ Status: FINAL
 Issue:  Tool versions in CI.
 Action: Owner ruling 2026-10-22: pin what CI needs pinned.
 Status: FINAL
+
+Issue:  D16 how CI pins uv.
+Action: One UV_VERSION per workflow file, checked against the Dependabot-tracked uv image in cli/Dockerfile, so a uv bump fails workflow-lint until the workflows follow (the same pattern as D14). Rejected: [tool.uv] required-version in pyproject (forces every contributor onto one uv), pinning without a check (drifts silently).
+Status: REVISIT
 
 Issue:  Alertmanager and Loki in the observability profile.
 Action: Out of scope, as recorded in compose/docker-compose.yml and README before this ledger existed.

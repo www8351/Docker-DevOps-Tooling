@@ -60,6 +60,11 @@ every supported Python (3.11 to 3.14) and installs the chart on kind.
   compose image bump must update the chart values in the same PR. Bump
   `version` in `deploy/chart/Chart.yaml` whenever the chart changes.
 - **GitHub Actions** are pinned to full commit SHAs with a version comment.
+  Jobs run on `ubuntu-24.04`. `UV_VERSION` in `ci.yml` and `release.yml`
+  must equal the uv image tag in `cli/Dockerfile`, so a Dependabot uv bump
+  updates both lines in the same PR (`workflow-lint` checks it).
+- **nginx** stays on its stable line (even minor versions); Dependabot
+  ignores the mainline odd minors listed in `.github/dependabot.yml`.
 - **Decisions**: a change that makes or reverses a significant trade-off adds
   a record under [`docs/adr/`](docs/adr/README.md), starting from its
   template.
